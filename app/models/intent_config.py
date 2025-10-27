@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, Text, Integer, Float, Boolean, DateTime, 
 from sqlalchemy.dialects.postgresql import ENUM as PgEnum, ARRAY
 from sqlalchemy.orm import relationship
 
-from app.core.db import Base
+from app.models.base import Base
 
 
 class ConfigStatus(str, Enum):

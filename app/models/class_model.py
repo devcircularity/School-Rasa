@@ -1,4 +1,4 @@
-# app/models/class_model.py - Fixed with proper relationships
+# app/models/class_model.py - Updated with streams relationship
 from __future__ import annotations
 import uuid
 from datetime import datetime
@@ -15,10 +15,11 @@ class Class(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     level: Mapped[str] = mapped_column(String(64), nullable=False)
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    stream: Mapped[str | None] = mapped_column(String(16))
+    stream: Mapped[str | None] = mapped_column(String(16))  # Keep for backward compatibility
     
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Add the enrollments relationship
+    # Relationships
     enrollments: Mapped[list["Enrollment"]] = relationship("Enrollment", back_populates="class_")
+    streams: Mapped[list["ClassStream"]] = relationship("ClassStream", back_populates="class_", cascade="all, delete-orphan")

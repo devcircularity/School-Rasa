@@ -83,6 +83,61 @@ async def create_guardian(
         created_at=guardian.created_at
     )
 
+@router.get("/", response_model=List[GuardianDetail])
+async def list_all_guardians(
+    ctx: dict = Depends(require_school),
+    db: Session = Depends(get_db)
+):
+    """Get all guardians in the school with their linked students"""
+    school_id = UUID(ctx["school_id"])
+    
+    # Get all guardians for this school
+    guardians = db.execute(
+        select(Guardian).where(
+            Guardian.school_id == school_id
+        ).order_by(Guardian.last_name, Guardian.first_name)
+    ).scalars().all()
+    
+    result = []
+    for guardian in guardians:
+        # Get all students linked to this guardian
+        student_links = db.execute(
+            select(Student, StudentGuardian)
+            .join(StudentGuardian, Student.id == StudentGuardian.student_id)
+            .where(
+                StudentGuardian.guardian_id == guardian.id,
+                Student.school_id == school_id
+            )
+        ).all()
+        
+        # Build list of students with primary status
+        students_info = []
+        for student, link in student_links:
+            students_info.append({
+                "id": str(student.id),
+                "full_name": f"{student.first_name} {student.last_name}",
+                "admission_no": student.admission_no,
+                "is_primary": (student.primary_guardian_id == guardian.id)
+            })
+        
+        # Check if this guardian is primary for any student
+        is_primary = any(s["is_primary"] for s in students_info)
+        
+        result.append(GuardianDetail(
+            id=guardian.id,
+            first_name=guardian.first_name,
+            last_name=guardian.last_name,
+            full_name=f"{guardian.first_name} {guardian.last_name}",
+            email=guardian.email,
+            phone=guardian.phone,
+            relationship=guardian.relationship,
+            is_primary=is_primary,
+            created_at=guardian.created_at,
+            students=students_info  # Add this field
+        ))
+    
+    return result
+
 @router.get("/student/{student_id}", response_model=List[GuardianDetail])
 async def get_student_guardians(
     student_id: UUID,
@@ -257,3 +312,5 @@ async def update_guardian(
         relationship=guardian.relationship,
         created_at=guardian.created_at
     )
+
+

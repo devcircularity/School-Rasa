@@ -1,41 +1,71 @@
 version: "3.1"
 
-
 intents:
+  # ==========================================
+  # CORE CONVERSATION INTENTS
+  # ==========================================
   - greet
   - goodbye
   - affirm
   - deny
   - bot_challenge
   - ask_help
+  - nlu_fallback
+  
+  # ==========================================
+  # STUDENT & GUARDIAN INTENTS
+  # ==========================================
   - create_student
-  - assign_student_to_class
+  - provide_student_details
+  - inform_name
+  - provide_admission_number
+  - auto_generate_admission
+  - add_guardian
   - list_students
   - list_students_by_class
   - show_unassigned_students
   - search_student
+  - get_student_details
+  - assign_student_to_class
+  - reenroll_student
+  - get_guardians
+  - list_students_without_guardians
+  - set_primary_guardian
+  - update_guardian
+  
+  # ==========================================
+  # CLASS MANAGEMENT INTENTS
+  # ==========================================
   - create_class
+  - add_class
   - list_classes
   - list_empty_classes
-  - get_student_details
+  - delete_class
+  - add_stream_to_class
+  - list_streams
+  - rename_class
+  
+  # ==========================================
+  # ACADEMIC MANAGEMENT INTENTS
+  # ==========================================
   - create_academic_year
   - create_academic_term
   - check_academic_setup
   - get_current_academic_year
   - get_current_term
-  - nlu_fallback
-  - provide_admission_number
-  - auto_generate_admission
-  - deactivate_academic_year
   - activate_academic_year
-  - promote_students
+  - deactivate_academic_year
   - activate_term
   - list_academic_terms
-  - reenroll_student
+  - list_academic_years
+  - promote_students
+  - complete_term
+  
+  # ==========================================
+  # FEE MANAGEMENT INTENTS
+  # ==========================================
   - create_fee_structure
   - list_fee_structures
-  - generate_invoices
-  - get_invoice
   - add_fee_item
   - view_fee_structure_details
   - delete_fee_items
@@ -44,68 +74,134 @@ intents:
   - affirm_set_default
   - deny_set_default
   - set_structure_as_default
-  - delete_class
-  - issue_invoices  
+  
+  # ==========================================
+  # INVOICE MANAGEMENT INTENTS
+  # ==========================================
+  - generate_invoices
+  - issue_invoices
+  - get_invoice
   - list_invoices
   - list_invoices_by_class
   - list_unpaid_invoices
+  - list_students_with_balances
   - cancel_invoice
+  
+  # ==========================================
+  # PAYMENT MANAGEMENT INTENTS
+  # ==========================================
   - record_payment
-  - add_guardian
-  - get_guardians
-  - list_students_without_guardians
-  - notify_pending_invoices
-  - set_primary_guardian
-  - update_guardian
-  - send_guardian_message
-  - get_school_info
-  - complete_term
   - affirm_send_payment_notification
   - deny_send_payment_notification
-  - list_students_with_balances  # FIXED: removed incorrect triggers syntax
+  
+  # ==========================================
+  # NOTIFICATION INTENTS
+  # ==========================================
+  - notify_pending_invoices
+  - send_guardian_message
   - notify_parents_with_balances
   - broadcast_message_to_all_parents
+  
+  # ==========================================
+  # SCHOOL INFORMATION INTENTS
+  # ==========================================
+  - get_school_info
+  
+  # ==========================================
+  # FORM CONTROL INTENTS
+  # ==========================================
+  - cancel_form
+  - restart_form
+  - resume_form
+  - stop_form
 
 entities:
+  # ==========================================
+  # STUDENT ENTITIES
+  # ==========================================
   - admission_no
   - student_name
   - student_query
   - class_name
+  
+  # ==========================================
+  # CLASS ENTITIES
+  # ==========================================
   - name
   - level
+  - stream
+  
+  # ==========================================
+  # ACADEMIC ENTITIES
+  # ==========================================
   - academic_year
   - year
-  - stream
   - term
   - source_term
   - target_term
+  
+  # ==========================================
+  # FEE ENTITIES
+  # ==========================================
   - fee_type
   - amount
   - structure_name
   - invoice_id
+  - due_date
+  
+  # ==========================================
+  # PAYMENT ENTITIES
+  # ==========================================
   - payment_method
   - txn_ref
+  
+  # ==========================================
+  # GUARDIAN ENTITIES
+  # ==========================================
   - guardian_name
   - relationship
   - phone
   - email
   - message
-  - due_date
 
 slots:
-  admission_no:
-    type: text
-    influence_conversation: true
-    mappings:
-      - type: from_entity
-        entity: admission_no
-  
+  # ==========================================
+  # STUDENT SLOTS
+  # ==========================================
   student_name:
     type: text
-    influence_conversation: true
+    influence_conversation: false
     mappings:
       - type: from_entity
         entity: student_name
+      - type: from_text
+        conditions:
+          - active_loop: student_creation_form
+            requested_slot: student_name
+          - active_loop: guardian_creation_form
+            requested_slot: student_name
+  
+  admission_no:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: admission_no
+      - type: from_text
+        conditions:
+          - active_loop: student_creation_form
+            requested_slot: admission_no
+  
+  class_name:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: class_name
+      - type: from_text
+        conditions:
+          - active_loop: student_creation_form
+            requested_slot: class_name
   
   student_query:
     type: text
@@ -114,13 +210,27 @@ slots:
       - type: from_entity
         entity: student_query
   
-  class_name:
+  pending_student_name:
     type: text
-    influence_conversation: true
+    influence_conversation: false
     mappings:
-      - type: from_entity
-        entity: class_name
+      - type: custom
   
+  pending_admission_no:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: custom
+
+  pending_class_name:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: custom
+
+  # ==========================================
+  # CLASS SLOTS
+  # ==========================================
   name:
     type: text
     influence_conversation: false
@@ -141,7 +251,10 @@ slots:
     mappings:
       - type: from_entity
         entity: stream
-  
+
+  # ==========================================
+  # ACADEMIC SLOTS
+  # ==========================================
   academic_year:
     type: text
     influence_conversation: false
@@ -163,24 +276,6 @@ slots:
       - type: from_entity
         entity: year
 
-  pending_student_name:
-    type: text
-    influence_conversation: true
-    mappings:
-      - type: custom
-  
-  pending_admission_no:
-    type: text
-    influence_conversation: true
-    mappings:
-      - type: custom
-
-  pending_class_name:
-    type: text
-    influence_conversation: true
-    mappings:
-      - type: custom
-
   source_term:
     type: text
     influence_conversation: false
@@ -195,6 +290,16 @@ slots:
       - type: from_entity
         entity: target_term
 
+  prerequisites_met:
+    type: bool
+    initial_value: null
+    influence_conversation: false
+    mappings:
+      - type: custom
+
+  # ==========================================
+  # FEE SLOTS
+  # ==========================================
   invoice_id:
     type: text
     influence_conversation: false
@@ -225,9 +330,20 @@ slots:
 
   pending_default_structure_id:
     type: text
+    influence_conversation: false
     mappings:
       - type: custom
 
+  due_date:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: due_date
+
+  # ==========================================
+  # PAYMENT SLOTS
+  # ==========================================
   payment_method:
     type: text
     influence_conversation: false
@@ -242,19 +358,43 @@ slots:
       - type: from_entity
         entity: txn_ref
 
+  pending_payment_notification:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: custom
+      
+  payment_student_id:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: custom
+      
+  payment_amount:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: custom
+      
+  payment_invoice_id:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: custom
+
+  # ==========================================
+  # GUARDIAN SLOTS
+  # ==========================================
   guardian_name:
     type: text
     influence_conversation: false
     mappings:
       - type: from_entity
         entity: guardian_name
-  
-  relationship:
-    type: text
-    influence_conversation: false
-    mappings:
-      - type: from_entity
-        entity: relationship
+      - type: from_text
+        conditions:
+          - active_loop: guardian_creation_form
+            requested_slot: guardian_name
   
   phone:
     type: text
@@ -262,6 +402,10 @@ slots:
     mappings:
       - type: from_entity
         entity: phone
+      - type: from_text
+        conditions:
+          - active_loop: guardian_creation_form
+            requested_slot: phone
   
   email:
     type: text
@@ -269,6 +413,21 @@ slots:
     mappings:
       - type: from_entity
         entity: email
+      - type: from_text
+        conditions:
+          - active_loop: guardian_creation_form
+            requested_slot: email
+  
+  relationship:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: relationship
+      - type: from_text
+        conditions:
+          - active_loop: guardian_creation_form
+            requested_slot: relationship
 
   message:
     type: text
@@ -277,34 +436,21 @@ slots:
       - type: from_entity
         entity: message
 
-  pending_payment_notification:
-    type: text
-    mappings:
-      - type: custom
-  payment_student_id:
-    type: text
-    mappings:
-      - type: custom
-  payment_amount:
-    type: text
-    mappings:
-      - type: custom
-  payment_invoice_id:
-    type: text
-    mappings:
-      - type: custom
-
-  due_date:
+  # ==========================================
+  # SYSTEM SLOTS
+  # ==========================================
+  requested_slot:
     type: text
     influence_conversation: false
     mappings:
-      - type: from_entity
-        entity: due_date
-
+      - type: custom
 
 responses:
+  # ==========================================
+  # BASIC RESPONSES
+  # ==========================================
   utter_greet:
-    - text: "Hello! I'm your School Assistant. I can help you manage students, classes, and academic setup. What would you like to do today?"
+    - text: "Hello! I'm your School Assistant. I can help you manage students, classes, guardians, fees, and more. What would you like to do today?"
     - text: "Hi there! How can I help you with your school management tasks?"
     - text: "Welcome! I'm here to assist with student and class management. What can I do for you?"
 
@@ -324,100 +470,197 @@ responses:
     - text: "Understood. How else can I assist you today?"
 
   utter_iamabot:
-    - text: "I'm a School Assistant bot powered by Rasa. I help with managing students, classes, academic years, terms, and enrollment."
-    - text: "I'm an AI assistant designed to help you manage your school efficiently. I can handle student enrollment, class creation, academic setup, and more!"
+    - text: "I'm a School Assistant bot powered by Rasa. I help with managing students, classes, academic years, terms, fees, guardians, and enrollment."
+    - text: "I'm an AI assistant designed to help you manage your school efficiently. I can handle student enrollment, class creation, academic setup, fee management, and more!"
 
   utter_default:
     - text: "I didn't understand that. Could you please rephrase? You can ask me to create students, manage classes, set up academic years, or type 'help' for more options."
-    - text: "Sorry, I'm not sure what you mean. Try asking about students, classes, academic setup, or say 'help' to see what I can do."
-    - text: "I'm not sure about that. I specialize in school management including students, classes, and academic administration. What would you like me to help with?"
+    - text: "Sorry, I'm not sure what you mean. Try asking about students, classes, academic setup, fees, or say 'help' to see what I can do."
+    - text: "I'm not sure about that. I specialize in school management including students, classes, guardians, and academic administration. What would you like me to help with?"
 
-  utter_ask_student_name:
-    - text: "What is the student's name?"
-  
-  utter_ask_admission_no:
-    - text: "What is the admission number? (Or say 'auto generate' to create one automatically)"
-  
-  utter_ask_class_name:
-    - text: "Which class should the student be enrolled in? (e.g., 'Grade 4', '8A', 'Form 1')"
-
+  # ==========================================
+  # FORM CONTROL RESPONSES
+  # ==========================================
   utter_acknowledged:
     - text: "Okay, you can set it as default later if needed."
     - text: "Got it. The structure is published but not set as default."
     - text: "Understood. You can generate invoices by specifying the structure name."
 
-forms:
-  student_creation_form:
-    required_slots:
-      - student_name
-      - admission_no
-      - class_name
+  utter_form_cancelled:
+    - text: "Okay, I've cancelled that operation. What would you like to do next?"
+    - text: "Operation cancelled successfully. You can start again anytime."
+    - text: "No problem! Operation cancelled. How else can I help?"
+
+  utter_form_restarted:
+    - text: "Got it, starting over from the beginning."
+    - text: "Alright, let's start fresh."
+    - text: "Starting over — let's do this from scratch."
+
+  utter_continue_form:
+    - text: "Okay, let's continue from where we left off."
+    - text: "Sure, let's pick up where we were."
+    - text: "Continuing..."
+
+  utter_ask_continue_form:
+    - text: "Would you like to continue where we left off or start over?"
+    - text: "Do you want to continue or restart?"
+    - text: "Should we continue or start fresh?"
+
+  utter_processing:
+    - text: "Let me process that for you..."
+    - text: "Processing your request..."
 
 actions:
+  # ==========================================
+  # STUDENT ACTIONS
+  # ==========================================
   - action_create_student
-  - action_assign_student_to_class
   - action_list_students
   - action_list_students_by_class
-  - action_list_unassigned_students
   - action_search_student
+  - action_list_unassigned_students
+  - action_assign_student_to_class
+  - action_provide_admission_number
+  - action_auto_generate_admission
+  - action_reenroll_student
+  - action_show_unassigned_students
+  - action_get_student_details
+  - action_restart_form
+  
+  # ==========================================
+  # CLASS MANAGEMENT ACTIONS
+  # ==========================================
   - action_create_class
   - action_list_classes
   - action_list_empty_classes
-  - action_get_student_details
+  - action_delete_class
+  - action_add_stream_to_class
+  - action_list_streams
+  - action_rename_class
+  
+  # ==========================================
+  # ACADEMIC MANAGEMENT ACTIONS
+  # ==========================================
   - action_create_academic_year
   - action_create_academic_term
   - action_check_academic_setup
   - action_get_current_academic_year
   - action_get_current_term
+  - action_activate_academic_year
+  - action_deactivate_academic_year
+  - action_activate_term
+  - action_list_academic_terms
+  - action_list_academic_years
+  - action_promote_students
+  - action_complete_term
+  
+  # ==========================================
+  # FEE MANAGEMENT ACTIONS
+  # ==========================================
+  - action_create_fee_structure
+  - action_list_fee_structures
+  - action_add_fee_item
+  - action_view_fee_structure_details
+  - action_delete_fee_items
+  - action_delete_specific_fee_item
+  - action_publish_fee_structure
+  - action_set_default_fee_structure
+  - action_set_structure_as_default
+  
+  # ==========================================
+  # INVOICE MANAGEMENT ACTIONS
+  # ==========================================
+  - action_generate_invoices
+  - action_issue_invoices
+  - action_get_invoice
+  - action_list_invoices
+  - action_list_invoices_by_class
+  - action_list_unpaid_invoices
+  - action_list_students_with_balances
+  - action_cancel_invoice
+  
+  # ==========================================
+  # PAYMENT MANAGEMENT ACTIONS
+  # ==========================================
+  - action_record_payment
+  - action_send_payment_notification
+  - action_reset_slots
+  
+  # ==========================================
+  # GUARDIAN MANAGEMENT ACTIONS
+  # ==========================================
+  - action_add_guardian
+  - action_get_guardians
+  - action_list_students_without_guardians
+  - action_set_primary_guardian
+  - action_update_guardian
+  - action_list_all_guardians
+  - list_all_guardians
+  
+  # ==========================================
+  # NOTIFICATION ACTIONS
+  # ==========================================
+  - action_notify_pending_invoices
+  - action_send_guardian_message
+  - action_notify_parents_with_balances
+  - action_broadcast_message_to_all_parents
+  
+  # ==========================================
+  # SCHOOL INFO ACTIONS
+  # ==========================================
+  - action_get_school_info
+  
+  # ==========================================
+  # FORM & HELPER ACTIONS
+  # ==========================================
   - action_help
+  - action_resume_student_form
+  - action_handle_form_interruption
+  - action_validate_student_creation_prerequisites
+  
+  # ==========================================
+  # STANDARD UTTERANCES
+  # ==========================================
   - utter_greet
   - utter_goodbye
   - utter_affirm
   - utter_deny
   - utter_iamabot
   - utter_default
-  - action_provide_admission_number
-  - action_auto_generate_admission
-  - action_deactivate_academic_year
-  - action_activate_academic_year
-  - action_promote_students
-  - action_activate_term
-  - action_list_academic_terms
-  - action_reenroll_student
-  - action_create_fee_structure
-  - action_list_fee_structures
-  - action_generate_invoices
-  - action_get_invoice
-  - action_add_fee_item
-  - action_view_fee_structure_details
-  - action_delete_fee_items
-  - action_delete_specific_fee_item
-  - action_publish_fee_structure
-  - action_delete_class
-  - action_set_default_fee_structure
-  - action_set_structure_as_default
-  - action_issue_invoices
-  - action_list_invoices
-  - action_list_invoices_by_class
-  - action_list_unpaid_invoices
-  - action_cancel_invoice
-  - action_record_payment
-  - action_add_guardian
-  - action_get_guardians
-  - action_list_students_without_guardians
-  - action_notify_pending_invoices
-  - action_set_primary_guardian
-  - action_update_guardian
-  - action_send_guardian_message
-  - action_get_school_info
-  - action_complete_term
-  - action_send_payment_notification
-  - action_reset_slots
-  - action_notify_parents_with_balances
-  - action_broadcast_message_to_all_parents
-  - action_list_students_with_balances
+  - utter_acknowledged
+  - utter_form_cancelled
+  - utter_form_restarted
+  - utter_continue_form
+  - utter_ask_continue_form
+  - utter_processing
 
+# ==========================================
+# FORMS - FIXED WITH PROPER MAPPINGS
+# ==========================================
+forms:
+  student_creation_form:
+    required_slots:
+      - student_name
+      - admission_no
+      - class_name
+    ignored_intents:
+      - goodbye
+      - cancel_form
+      - restart_form
+      - stop_form
 
+  guardian_creation_form:
+    required_slots:
+      - guardian_name
+      - phone
+      - email
+      - relationship
+      - student_name
+    ignored_intents:
+      - goodbye
+      - cancel_form
+      - restart_form
+      - stop_form
 
 session_config:
   session_expiration_time: 60

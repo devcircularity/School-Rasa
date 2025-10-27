@@ -1,10 +1,12 @@
+// components/layout/HeaderBar.tsx - With academic info badges
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
-import { Menu } from 'lucide-react'
+import { Menu, GraduationCap, Users } from 'lucide-react'
 import UserControlsModal from './UserControlsModal'
 import { SidebarBus } from './WorkspaceShell'
+import { academicStatusService, type AcademicStatus } from '@/services/academic-status'
 
 // Header title bus for dynamic title updates
 type HeaderTitleCommand = { type: 'set', title: string, subtitle?: string } | { type: 'clear' }
@@ -47,7 +49,10 @@ export default function HeaderBar() {
   const [isMobile, setIsMobile] = useState(false)
   const [pageTitle, setPageTitle] = useState<string>('')
   const [pageSubtitle, setPageSubtitle] = useState<string>('')
+  const [academicStatus, setAcademicStatus] = useState<AcademicStatus | null>(null)
+  const [classCount, setClassCount] = useState<number>(0)
   const tipRef = useRef<HTMLDivElement>(null)
+  const refreshTimeoutRef = useRef<NodeJS.Timeout>()
 
   const claims = useMemo(() => decodeJwt(token || undefined), [token])
   const name = claims?.full_name
@@ -67,6 +72,62 @@ export default function HeaderBar() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Load academic status and class count
+  useEffect(() => {
+    if (!token) return
+    
+    loadAcademicInfo()
+    
+    // Refresh every 5 minutes
+    const interval = setInterval(loadAcademicInfo, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [token])
+
+  // Listen for academic status updates with debouncing
+  useEffect(() => {
+    const handleStatusUpdate = () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+      }
+      
+      refreshTimeoutRef.current = setTimeout(() => {
+        loadAcademicInfo()
+      }, 500)
+    }
+
+    window.addEventListener('academic-status-updated', handleStatusUpdate)
+    
+    return () => {
+      window.removeEventListener('academic-status-updated', handleStatusUpdate)
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  async function loadAcademicInfo() {
+    try {
+      // Load academic status
+      const status = await academicStatusService.getStatus()
+      setAcademicStatus(status)
+
+      // Load class count
+      const response = await fetch('/api/classes?limit=1', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-School-ID': schoolId as string
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setClassCount(data.total || 0)
+      }
+    } catch (error) {
+      console.error('Failed to load academic info:', error)
+    }
+  }
 
   // Listen for header title updates
   useEffect(() => {
@@ -97,6 +158,8 @@ export default function HeaderBar() {
     SidebarBus.send({ type: 'toggle' })
   }
 
+  const showAcademicBadges = token && academicStatus?.setup_complete
+
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
       {/* Left side - Hamburger menu and title */}
@@ -126,57 +189,45 @@ export default function HeaderBar() {
         )}
       </div>
 
-      {/* Right side - User controls */}
-      <div className="flex items-center flex-shrink-0">
-        {!token ? (
-          <div className="flex items-center gap-3 text-sm">
-            <Link className="link-subtle" href="/login">Login</Link>
-            <Link className="link-subtle" href="/signup">Sign up</Link>
+      {/* Center - Academic Info Badges (only when setup complete) */}
+      {showAcademicBadges && (
+        <div className="hidden lg:flex items-center gap-2 px-4 text-xs">
+          {/* Academic Year Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+            <GraduationCap className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400" />
+            <span className="font-medium text-neutral-900 dark:text-neutral-100">
+              {academicStatus.academic_year?.year || 'No Year'}
+            </span>
           </div>
-        ) : (
-          <div className="relative" ref={tipRef}>
-            {/* Enhanced Avatar with ring and shadow */}
-            <button
-              onMouseEnter={() => setShowTip(true)}
-              onMouseLeave={() => setShowTip(false)}
-              onClick={() => setOpenModal(true)}
-              className="inline-flex h-10 w-10 items-center justify-center 
-                         rounded-full bg-[--color-brand] text-white font-semibold text-sm
-                         shadow-lg hover:shadow-xl
-                         ring-2 ring-[--color-brand]/30 dark:ring-[--color-brand]/40
-                         border-2 border-[--color-brand-light]/50
-                         hover:scale-105 active:scale-95
-                         transition-all duration-200 ease-out"
-              aria-label="User menu"
-              title={userLabel}
-            >
-              {avatarTxt}
-            </button>
 
-            {/* Hover tooltip (name + email) */}
-            {showTip && (
-              <div
-                className="absolute right-0 mt-2 card px-3 py-2 text-xs min-w-[200px] z-50"
-                onMouseEnter={() => setShowTip(true)}
-                onMouseLeave={() => setShowTip(false)}
-              >
-                <div className="font-medium truncate">{userLabel}</div>
-                {email && <div className="text-neutral-600 dark:text-neutral-400 truncate">{email}</div>}
-              </div>
-            )}
+          {/* Divider */}
+          <div className="h-4 w-px bg-neutral-300 dark:bg-neutral-700" />
 
-            {/* Controls modal on click */}
-            <UserControlsModal
-              open={openModal}
-              onClose={() => setOpenModal(false)}
-              onLogout={logout}
-              userLabel={userLabel}
-              email={email || undefined}
-              schoolId={schoolId as any}
-            />
+          {/* Term Info */}
+          <div className="flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400">
+            <span>Term</span>
+            <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+              {academicStatus.active_term?.term || '-'}
+            </span>
           </div>
-        )}
-      </div>
+
+          {/* Divider */}
+          <div className="h-4 w-px bg-neutral-300 dark:bg-neutral-700" />
+
+          {/* Classes Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+            <Users className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400" />
+            <span className="font-medium text-neutral-900 dark:text-neutral-100">
+              {classCount}
+            </span>
+            <span className="hidden xl:inline text-neutral-600 dark:text-neutral-400">
+              {classCount === 1 ? 'Class' : 'Classes'}
+            </span>
+          </div>
+        </div>
+      )}
+
+
     </header>
   )
 }

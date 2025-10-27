@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Sidebar from './WorkspaceSidebar'
 import CanvasPanel from './WorkspaceCanvas'
 import HeaderBar from './HeaderBar'
+import AcademicStatusBar from './AcademicStatusBar' // Add this import
+
 
 // Simple event bus so any page/component can open the canvas
 type CanvasCommand = { type: 'open' | 'close' | 'toggle', width?: number }
@@ -170,10 +172,17 @@ export default function WorkspaceShell({ children }: { children: React.ReactNode
 
           {/* Main content area with header - CRITICAL: Fixed flex layout */}
           <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+            {/* Header Bar */}
             <div className="flex-shrink-0">
               <HeaderBar />
             </div>
-            {/* CRITICAL: This div must have proper height constraints */}
+            
+            {/* Academic Status Bar - ADD THIS HERE */}
+            <div className="flex-shrink-0">
+              <AcademicStatusBar />
+            </div>
+            
+            {/* Main Content - CRITICAL: This div must have proper height constraints */}
             <div className="flex-1 min-h-0 overflow-hidden">
               {children}
             </div>

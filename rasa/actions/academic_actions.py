@@ -11,6 +11,7 @@ import requests
 import logging
 from datetime import datetime
 from typing import Dict, Text, Any, List
+from actions.utils import normalize_level_label, extract_level_number, normalize_stream_name
 import re
 
 logger = logging.getLogger(__name__)
@@ -48,68 +49,105 @@ class ActionCreateAcademicYear(Action):
     def name(self) -> Text:
         return "action_create_academic_year"
 
-    def run(self, dispatcher: CollectingDispatcher, 
-            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+def run(self, dispatcher: CollectingDispatcher, 
+        tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+    
+    metadata = tracker.latest_message.get("metadata", {})
+    auth_token = metadata.get("auth_token")
+    school_id = metadata.get("school_id")
+    
+    if not auth_token:
+        dispatcher.utter_message(text="Authentication required. Please log in first.")
+        return [SlotSet("prerequisites_met", False)]
+    
+    try:
+        headers = {
+            "Authorization": f"Bearer {auth_token}",
+            "Content-Type": "application/json",
+            "X-School-ID": school_id
+        }
         
-        metadata = tracker.latest_message.get("metadata", {})
-        auth_token = metadata.get("auth_token")
-        school_id = metadata.get("school_id")
+        # Check academic setup
+        setup_response = requests.get(
+            f"{FASTAPI_BASE_URL}/academic/current-setup",
+            headers=headers
+        )
         
-        if not auth_token:
-            dispatcher.utter_message(text="Authentication required. Please log in first.")
-            return []
-        
-        academic_year = tracker.get_slot("academic_year")
-        if not academic_year:
-            academic_year = str(datetime.now().year)
-        
-        try:
-            headers = {
-                "Authorization": f"Bearer {auth_token}",
-                "Content-Type": "application/json",
-                "X-School-ID": school_id
-            }
-            
-            year_payload = {
-                "year": int(academic_year),
-                "title": f"Academic Year {academic_year}",
-                "state": "active"
-            }
-            
-            response = requests.post(
+        if setup_response.status_code != 200:
+            # Check if ANY academic years exist
+            years_response = requests.get(
                 f"{FASTAPI_BASE_URL}/academic/years",
-                json=year_payload,
                 headers=headers
             )
             
-            if response.status_code == 201:
-                dispatcher.utter_message(
-                    text=f"Academic Year {academic_year} created successfully!\n\n"
-                         f"Next step: Create terms for this academic year.\n"
-                         f"Try: 'create term 1' or 'add term 1 to academic year {academic_year}'"
-                )
-            elif response.status_code == 409:
-                dispatcher.utter_message(
-                    text=f"Academic Year {academic_year} already exists.\n\n"
-                         f"You can now create terms or check the academic setup status."
-                )
+            if years_response.status_code == 200:
+                years = years_response.json()
+                if years:
+                    # Years exist, so problem is with terms/activation
+                    self._show_terms_required_message(dispatcher)
+                else:
+                    # No years at all
+                    self._show_setup_required_message(dispatcher)
             else:
-                error_data = response.json() if response.content else {}
-                error_msg = error_data.get('detail', 'Failed to create academic year')
-                dispatcher.utter_message(text=f"Error: {error_msg}")
+                self._show_setup_required_message(dispatcher)
+            
+            return [SlotSet("prerequisites_met", False)]
         
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error creating academic year: {e}")
-            dispatcher.utter_message(
-                text="Sorry, I'm having trouble connecting to the system. Please try again in a moment."
-            )
-        except Exception as e:
-            logger.error(f"Unexpected error in ActionCreateAcademicYear: {e}")
-            dispatcher.utter_message(
-                text="An unexpected error occurred. Please try again."
-            )
+        setup_data = setup_response.json()
         
-        return [SlotSet("academic_year", None)]
+        # Check if setup is complete
+        if not setup_data.get("setup_complete"):
+            self._show_incomplete_setup_message(dispatcher, setup_data)
+            return [SlotSet("prerequisites_met", False)]
+        
+        # Check if there are any classes
+        classes_response = requests.get(
+            f"{FASTAPI_BASE_URL}/classes",
+            headers=headers
+        )
+        
+        if classes_response.status_code == 200:
+            classes_data = classes_response.json()
+            classes = classes_data.get("classes", [])
+            
+            if not classes:
+                self._show_no_classes_message(dispatcher, setup_data)
+                return [SlotSet("prerequisites_met", False)]
+        
+        # All checks passed
+        return [SlotSet("prerequisites_met", True)]
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error validating prerequisites: {e}")
+        dispatcher.utter_message(
+            text="Sorry, I'm having trouble connecting to the system. Please try again in a moment."
+        )
+        return [SlotSet("prerequisites_met", False)]
+    except Exception as e:
+        logger.error(f"Unexpected error in prerequisite validation: {e}")
+        dispatcher.utter_message(
+            text="An unexpected error occurred. Please try again."
+        )
+        return [SlotSet("prerequisites_met", False)]
+
+def _show_terms_required_message(self, dispatcher: CollectingDispatcher):
+    """Show message when academic year exists but terms are missing"""
+    lines = [
+        "```",
+        "⚠️  TERMS REQUIRED",
+        "══════════════════════════════",
+        "",
+        "Academic year exists but no active term found.",
+        "",
+        "Required Steps:",
+        "1. 'create term 1'",
+        "2. 'activate term 1'",
+        "3. 'create class Grade 4' (or any class)",
+        "",
+        "Then try creating the student again.",
+        "```"
+    ]
+    dispatcher.utter_message(text="\n".join(lines))
 
 
 class ActionCreateAcademicTerm(Action):
@@ -703,7 +741,11 @@ class ActionActivateTerm(Action):
                 "X-School-ID": school_id
             }
             
-            setup_response = requests.get(f"{FASTAPI_BASE_URL}/academic/current-setup", headers=headers)
+            # FIXED: Get current setup to get year ID
+            setup_response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/current-setup",
+                headers=headers
+            )
             
             if setup_response.status_code != 200:
                 dispatcher.utter_message(text="Cannot check academic setup.")
@@ -716,7 +758,14 @@ class ActionActivateTerm(Action):
                 dispatcher.utter_message(text="No active academic year found.")
                 return []
             
-            terms_response = requests.get(f"{FASTAPI_BASE_URL}/academic/years/{current_year['id']}/terms", headers=headers)
+            # Get year ID
+            year_id = current_year['id']
+            
+            # FIXED: Get terms using year ID
+            terms_response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/years/{year_id}/terms",
+                headers=headers
+            )
             
             if terms_response.status_code != 200:
                 dispatcher.utter_message(text="Cannot retrieve terms.")
@@ -731,10 +780,16 @@ class ActionActivateTerm(Action):
                     break
             
             if not target_term:
-                dispatcher.utter_message(text=f"Term {term_number} not found for {current_year['year']}.")
+                dispatcher.utter_message(
+                    text=f"Term {term_number} not found for {current_year['year']}."
+                )
                 return []
             
-            activate_response = requests.put(f"{FASTAPI_BASE_URL}/academic/terms/{target_term['id']}/activate", headers=headers)
+            # Activate the term
+            activate_response = requests.put(
+                f"{FASTAPI_BASE_URL}/academic/terms/{target_term['id']}/activate",
+                headers=headers
+            )
             
             if activate_response.status_code == 200:
                 dispatcher.utter_message(
@@ -775,6 +830,7 @@ class ActionListAcademicTerms(Action):
                 "X-School-ID": school_id
             }
             
+            # FIXED: First get the current academic year to get its ID
             setup_response = requests.get(
                 f"{FASTAPI_BASE_URL}/academic/current-setup",
                 headers=headers
@@ -791,9 +847,11 @@ class ActionListAcademicTerms(Action):
                 dispatcher.utter_message(text="No academic year found. Please create one first.")
                 return []
             
-            year_to_check = academic_year or str(current_year["year"])
+            # Use the year ID, not the year number
             year_id = current_year["id"]
+            year_to_check = academic_year or str(current_year["year"])
             
+            # FIXED: Use the correct endpoint with year_id
             terms_response = requests.get(
                 f"{FASTAPI_BASE_URL}/academic/years/{year_id}/terms",
                 headers=headers
@@ -826,7 +884,7 @@ class ActionListAcademicTerms(Action):
                         indicator = "○"
                         state_desc = "PLANNED - not started"
                         planned_count += 1
-                    elif state == "COMPLETED":
+                    elif state == "COMPLETED" or state == "CLOSED":
                         indicator = "✓"
                         state_desc = "COMPLETED - ended"
                         completed_count += 1
@@ -970,39 +1028,246 @@ class ActionCreateClass(Action):
         stream = tracker.get_slot("stream")
         academic_year = tracker.get_slot("academic_year")
         
+        # CRITICAL FIX: If academic_year is a single/double digit, it's the class level
+        if academic_year:
+            try:
+                year_val = int(str(academic_year))
+                if year_val < 100:
+                    logger.warning(f"Detected {year_val} as academic_year, treating as level instead")
+                    if not level:
+                        level = str(year_val)
+                    if not class_name:
+                        class_name = str(year_val)
+                    academic_year = None
+            except (ValueError, TypeError):
+                pass
+        
         message_text = tracker.latest_message.get("text", "").lower()
         
-        if not class_name and not level:
-            words = message_text.split()
-            for i, word in enumerate(words):
-                if word in ["class", "grade"] and i + 1 < len(words):
-                    potential_class = words[i + 1]
-                    if not level:
-                        level = potential_class
-                    if not class_name:
-                        class_name = potential_class
-                    break
+        # ==========================================
+        # HELPER: Normalize level label (Grade/Form → Class)
+        # ==========================================
+        def normalize_level_label(text: str) -> str:
+            """
+            Normalize class level labels to consistent format.
+            Maps: grade/standard → Class
+            Preserves: Form, JSS, PP (specific Kenyan labels)
+            
+            Examples:
+                "Grade 8" → "Class 8"
+                "grade 6" → "Class 6"
+                "Form 2" → "Form 2" (preserved)
+                "JSS 1" → "JSS 1" (preserved)
+                "PP1" → "PP1" (preserved)
+                "8" → "8"
+            """
+            if not text:
+                return text
+            
+            text = str(text).strip()
+            
+            # Keep Form, JSS, PP as-is (they're distinct level types in Kenyan system)
+            if re.match(r'^(form|jss|pp|standard)\s+\d+', text, re.IGNORECASE):
+                return text.title()
+            
+            # Check if it's JUST a number
+            if text.isdigit():
+                return text
+            
+            # Replace "grade" with "Class"
+            text = re.sub(r'\bgrade\s+', 'Class ', text, flags=re.IGNORECASE)
+            
+            # If it starts with "class" already, just title case it
+            if text.lower().startswith('class'):
+                return text.title()
+            
+            return text.title()
         
-        if not level and not class_name:
+        # ==========================================
+        # HELPER: Parse level and stream from text
+        # ==========================================
+        def parse_level_and_stream(text: str):
+            """
+            Parse input like '8 blue', 'grade 5 red', 'form 2 alpha' into level and stream
+            Returns: (level, stream) tuple
+            """
+            import re
+            
+            # Pattern 1: "grade 8 blue", "form 2 alpha", "class 5 red"
+            pattern1 = r'(?:class|grade|form|jss|standard|pp)?\s*(\d+)\s+([a-zA-Z]+)'
+            match = re.search(pattern1, text, re.IGNORECASE)
+            
+            if match:
+                level_num = match.group(1)
+                stream_name = match.group(2)
+                
+                # Check if it's a level keyword (grade/form/jss)
+                level_prefix_match = re.search(
+                    r'(grade|form|jss|standard|pp)\s+\d+',
+                    text,
+                    re.IGNORECASE
+                )
+                
+                if level_prefix_match:
+                    level = f"{level_prefix_match.group(1).title()} {level_num}"
+                else:
+                    level = level_num
+                
+                return level, stream_name.title()
+            
+            # Pattern 2: just "grade 8", "form 2", "class 5" (no stream)
+            pattern2 = r'(grade|form|jss|standard|pp|class)?\s*(\d+)(?:\s|$)'
+            match = re.search(pattern2, text, re.IGNORECASE)
+            
+            if match:
+                prefix = match.group(1)
+                level_num = match.group(2)
+                
+                if prefix:
+                    level = f"{prefix.title()} {level_num}"
+                else:
+                    level = level_num
+                
+                return level, None
+            
+            return None, None
+        
+        # ==========================================
+        # HELPER: Extract all stream names from text
+        # ==========================================
+        def extract_all_streams(text: str, level_str: str) -> List[str]:
+            """
+            Extract multiple stream names from text.
+            Supports: colors, directions, greek letters, single letters (A-Z), names
+            """
+            import re
+            
+            # Comprehensive stream keywords
+            stream_keywords = [
+                # Colors
+                'red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 
+                'white', 'black', 'brown', 'gray', 'grey', 'violet', 'indigo',
+                'maroon', 'turquoise', 'crimson', 'scarlet', 'amber', 'cyan',
+                'magenta', 'gold', 'silver', 'bronze',
+                # Directions
+                'north', 'south', 'east', 'west',
+                # Greek letters
+                'alpha', 'beta', 'gamma', 'delta', 'omega', 'sigma', 'theta',
+                # Single letters A-Z
+                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+                'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+                # Animal/name streams
+                'eagle', 'lion', 'tiger', 'falcon', 'hawk', 'phoenix', 'leopard',
+                'cheetah', 'panther', 'marvel', 'excellence', 'victory', 'mama', 
+                'baba', 'silk'
+            ]
+            
+            # Remove "with streams" to isolate stream names
+            clean_text = re.sub(r'\bwith\s+streams?\b', '', text, flags=re.IGNORECASE)
+            
+            # Remove level references
+            if level_str:
+                # Extract just the number from level
+                level_num = re.search(r'\d+', str(level_str))
+                if level_num:
+                    num = level_num.group()
+                    clean_text = re.sub(
+                        rf'\b(class|grade|form|jss|pp|create|new|make|add)\s*{num}\b',
+                        '',
+                        clean_text,
+                        flags=re.IGNORECASE
+                    )
+            
+            # Remove action keywords
+            clean_text = re.sub(
+                r'\b(class|grade|form|jss|pp|create|new|make|add|streams?)\b',
+                '',
+                clean_text,
+                flags=re.IGNORECASE
+            )
+            
+            # Split by commas and "and"
+            parts = re.split(r',|\s+and\s+', clean_text)
+            
+            found_streams = []
+            for part in parts:
+                part_clean = part.strip().lower()
+                if not part_clean:
+                    continue
+                
+                # Check each word in the part
+                words = part_clean.split()
+                for word in words:
+                    if word in stream_keywords:
+                        # Single letters: uppercase (A, B, X)
+                        # Everything else: title case (Red, Blue, Alpha)
+                        if len(word) == 1:
+                            found_streams.append(word.upper())
+                        else:
+                            found_streams.append(word.title())
+                        break
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_streams = []
+            for stream_name in found_streams:
+                if stream_name.lower() not in seen:
+                    seen.add(stream_name.lower())
+                    unique_streams.append(stream_name)
+            
+            return unique_streams
+        
+        # ==========================================
+        # PARSE: Extract level and streams
+        # ==========================================
+        
+        # Try to extract level and stream from message
+        parsed_level, parsed_stream = parse_level_and_stream(message_text)
+        
+        if parsed_level:
+            level = parsed_level
+        if parsed_stream and not stream:
+            stream = parsed_stream
+        
+        # If still no level, try from class_name slot
+        if not level and class_name:
+            parsed_level, parsed_stream = parse_level_and_stream(class_name)
+            if parsed_level:
+                level = parsed_level
+            if parsed_stream and not stream:
+                stream = parsed_stream
+        
+        # Validation: Must have level
+        if not level:
             dispatcher.utter_message(
-                text="I need more information. Please specify the class level (e.g., 'Grade 8', 'Form 1', '8A')"
+                text="I need the class level.\n\n"
+                     "**Examples:**\n"
+                     "- 'create class 8'\n"
+                     "- 'create grade 6 Blue'\n"
+                     "- 'create form 2 Alpha'\n"
+                     "- 'add grade 7 with streams blue and red'"
             )
             return []
         
-        if not class_name:
-            class_name = level
-            if stream:
-                class_name += f" {stream}"
+        # Normalize the level label
+        level = normalize_level_label(level)
         
-        if not level:
-            level = class_name
+        # Extract all streams from message text
+        streams_to_add = extract_all_streams(message_text, level)
         
-        if class_name:
-            class_name = normalize_class_name(class_name)
-        if level:
-            level = normalize_class_name(level)
-        if stream:
-            stream = stream.strip().upper() if stream else None
+        # If no streams found via parsing but stream slot has value, use it
+        if not streams_to_add and stream:
+            # Normalize single stream
+            if len(stream) == 1:
+                streams_to_add = [stream.upper()]
+            else:
+                streams_to_add = [stream.title()]
+        
+        logger.info(f"Creating class '{level}' with streams: {streams_to_add}")
+        
+        # ==========================================
+        # API CALL: Create class with streams
+        # ==========================================
         
         try:
             headers = {
@@ -1011,73 +1276,85 @@ class ActionCreateClass(Action):
                 "X-School-ID": school_id
             }
             
-            academic_setup_response = requests.get(
-                f"{FASTAPI_BASE_URL}/academic/current-setup",
-                headers=headers
-            )
-            
-            if academic_setup_response.status_code != 200:
-                dispatcher.utter_message(
-                    text="Academic Setup Required\n\n"
-                         "Cannot create classes without proper academic setup.\n\n"
-                         "Please complete these steps first:\n"
-                         "1. 'create academic year 2025'\n"
-                         "2. 'create term 1'\n\n"
-                         "Then try creating the class again."
-                )
-                return []
-            
-            setup_data = academic_setup_response.json()
-            
-            if not setup_data.get("setup_complete"):
-                missing_items = []
-                next_steps = []
-                
-                if not setup_data.get("current_year"):
-                    missing_items.append("Academic Year")
-                    next_steps.append("'create academic year 2025'")
-                
-                if not setup_data.get("current_term"):
-                    missing_items.append("Academic Term")
-                    next_steps.append("'create term 1'")
-                
-                dispatcher.utter_message(
-                    text=f"Academic Setup Incomplete\n\n"
-                         f"Missing: {' and '.join(missing_items)}\n\n"
-                         f"Required steps:\n"
-                         f"{chr(10).join(f'- {step}' for step in next_steps)}\n\n"
-                         f"Complete academic setup is required before creating classes.\n"
-                         f"Check status anytime with: 'check academic setup'"
-                )
-                return []
-            
+            # Get current academic year if not specified
             if not academic_year:
-                academic_year = str(setup_data["current_year"]["year"])
-            
-            class_payload = {
-                "name": class_name,
-                "level": level,
-                "stream": stream,
-                "academic_year": int(academic_year)
-            }
-            
-            response = requests.post(
-                f"{FASTAPI_BASE_URL}/classes",
-                json=class_payload,
-                headers=headers
-            )
-            
-            if response.status_code == 201:
-                class_data = response.json()
-                stream_text = f" - Stream {stream}" if stream else ""
-                dispatcher.utter_message(
-                    text=f"Class created successfully!\n\n"
-                         f"Class Details:\n"
-                         f"Name: {class_name}\n"
-                         f"Level: {level}{stream_text}\n"
-                         f"Academic Year: {academic_year}\n\n"
-                         f"The class is ready for student enrollment!"
+                academic_setup_response = requests.get(
+                    f"{FASTAPI_BASE_URL}/academic/current-setup",
+                    headers=headers
                 )
+                
+                if academic_setup_response.status_code != 200:
+                    dispatcher.utter_message(
+                        text="⚠️ **Academic Setup Required**\n\n"
+                             "Cannot create classes without proper academic setup.\n\n"
+                             "Please complete academic setup first."
+                    )
+                    return []
+                
+                setup_data = academic_setup_response.json()
+                
+                if not setup_data.get("setup_complete"):
+                    dispatcher.utter_message(
+                        text="⚠️ **Academic Setup Incomplete**\n\n"
+                             "Please complete academic setup first."
+                    )
+                    return []
+                
+                current_year = setup_data.get("current_year")
+                if current_year:
+                    academic_year = current_year.get("year")
+                    
+                if not academic_year:
+                    dispatcher.utter_message(
+                        text="Could not determine current academic year."
+                    )
+                    return []
+            
+            academic_year = int(academic_year)
+            
+            # ==========================================
+            # SCENARIO 1: No streams - create base class only
+            # ==========================================
+            if not streams_to_add:
+                class_payload = {
+                    "name": level,
+                    "level": level,
+                    "stream": None,
+                    "academic_year": academic_year
+                }
+                
+                logger.info(f"Creating base class with payload: {class_payload}")
+                
+                response = requests.post(
+                    f"{FASTAPI_BASE_URL}/classes/level-stream",
+                    json=class_payload,
+                    headers=headers
+                )
+                
+                if response.status_code == 201:
+                    dispatcher.utter_message(
+                        text=f"✅ **{level} created successfully ({academic_year})!**\n\n"
+                             f"The class is ready for student enrollment.\n\n"
+                             f"To add streams: 'add stream Blue to {level}'"
+                    )
+                    
+                    return [
+                        SlotSet("name", None),
+                        SlotSet("level", None),
+                        SlotSet("stream", None),
+                        SlotSet("academic_year", None)
+                    ]
+                
+                elif response.status_code == 409:
+                    error_data = response.json() if response.content else {}
+                    error_msg = error_data.get('detail', f'{level} already exists')
+                    dispatcher.utter_message(text=f"⚠️ {error_msg}")
+                
+                else:
+                    error_data = response.json() if response.content else {}
+                    error_msg = error_data.get('detail', f'Failed to create {level}')
+                    logger.error(f"Class creation failed: {error_msg}")
+                    dispatcher.utter_message(text=f"❌ Error: {error_msg}")
                 
                 return [
                     SlotSet("name", None),
@@ -1086,28 +1363,155 @@ class ActionCreateClass(Action):
                     SlotSet("academic_year", None)
                 ]
             
-            elif response.status_code == 409:
-                dispatcher.utter_message(
-                    text=f"A class named '{class_name}' already exists for {academic_year}. Please use a different name."
+            # ==========================================
+            # SCENARIO 2: Create class with streams
+            # ==========================================
+            
+            # Step 1: Ensure base class exists
+            base_class_payload = {
+                "name": level,
+                "level": level,
+                "stream": None,
+                "academic_year": academic_year
+            }
+            
+            logger.info(f"Step 1: Creating/checking base class {level}")
+            
+            base_response = requests.post(
+                f"{FASTAPI_BASE_URL}/classes/level-stream",
+                json=base_class_payload,
+                headers=headers
+            )
+            
+            # Get the class ID (either from creation or by fetching)
+            class_id = None
+            
+            if base_response.status_code == 201:
+                class_data = base_response.json()
+                class_id = class_data.get("id")
+                logger.info(f"Base class created with ID: {class_id}")
+                
+            elif base_response.status_code == 409:
+                # Class already exists, fetch it
+                logger.info(f"Base class {level} already exists, fetching ID")
+                fetch_response = requests.get(
+                    f"{FASTAPI_BASE_URL}/classes?search={level}&academic_year={academic_year}",
+                    headers=headers
                 )
-            else:
-                error_data = response.json() if response.content else {}
-                error_msg = error_data.get('detail', 'Failed to create class')
-                dispatcher.utter_message(text=f"Error: {error_msg}")
+                
+                if fetch_response.status_code == 200:
+                    classes_data = fetch_response.json()
+                    classes = classes_data.get("classes", [])
+                    
+                    for cls in classes:
+                        # Match by level AND academic year
+                        if cls["level"] == level and cls["academic_year"] == academic_year:
+                            class_id = cls["id"]
+                            logger.info(f"Found existing class with ID: {class_id}")
+                            break
+            
+            if not class_id:
+                dispatcher.utter_message(
+                    text=f"❌ Could not create or find {level}. Please try again."
+                )
+                return [
+                    SlotSet("name", None),
+                    SlotSet("level", None),
+                    SlotSet("stream", None),
+                    SlotSet("academic_year", None)
+                ]
+            
+            # Step 2: Add all streams
+            added_streams = []
+            failed_streams = []
+            skipped_streams = []
+            
+            logger.info(f"Step 2: Adding {len(streams_to_add)} streams to class {class_id}")
+            
+            for stream_name in streams_to_add:
+                stream_payload = {"name": stream_name}
+                
+                logger.info(f"Adding stream '{stream_name}' to class {class_id}")
+                
+                stream_response = requests.post(
+                    f"{FASTAPI_BASE_URL}/classes/{class_id}/streams",
+                    json=stream_payload,
+                    headers=headers
+                )
+                
+                logger.info(f"Stream '{stream_name}' response: {stream_response.status_code}")
+                
+                if stream_response.status_code == 201:
+                    added_streams.append(stream_name)
+                elif stream_response.status_code == 409:
+                    skipped_streams.append(stream_name)
+                else:
+                    failed_streams.append(stream_name)
+            
+            # Build response message
+            messages = []
+            
+            if added_streams:
+                if len(added_streams) == 1:
+                    messages.append(
+                        f"✅ **{level} created with stream '{added_streams[0]}' ({academic_year})!**"
+                    )
+                    messages.append(
+                        f"Students can now be enrolled in **{level} {added_streams[0]}**."
+                    )
+                else:
+                    streams_list = "', '".join(added_streams)
+                    all_streams = ", ".join(added_streams)
+                    messages.append(
+                        f"✅ **{level} created with streams: {all_streams} ({academic_year})!**"
+                    )
+                    messages.append(
+                        f"Students can be enrolled in any of these streams."
+                    )
+            
+            if skipped_streams:
+                skipped_list = "', '".join(skipped_streams)
+                messages.append(
+                    f"⚠️ Stream(s) '{skipped_list}' already exist for {level}."
+                )
+            
+            if failed_streams:
+                failed_list = "', '".join(failed_streams)
+                messages.append(
+                    f"❌ Failed to add stream(s): '{failed_list}'. Please try manually."
+                )
+            
+            if not added_streams and not skipped_streams:
+                messages.append(
+                    f"❌ Failed to create {level} with the specified streams."
+                )
+            
+            dispatcher.utter_message(text="\n\n".join(messages))
+            
+            return [
+                SlotSet("name", None),
+                SlotSet("level", None),
+                SlotSet("stream", None),
+                SlotSet("academic_year", None)
+            ]
         
         except requests.exceptions.RequestException as e:
             logger.error(f"Error creating class: {e}")
             dispatcher.utter_message(
-                text="Sorry, I'm having trouble connecting to the system. Please try again in a moment."
+                text="Sorry, I'm having trouble connecting to the system. Please try again."
             )
         except Exception as e:
-            logger.error(f"Unexpected error in ActionCreateClass: {e}")
+            logger.error(f"Error in ActionCreateClass: {e}", exc_info=True)
             dispatcher.utter_message(
-                text="An unexpected error occurred. Please try again."
+                text="An error occurred. Please try again."
             )
         
-        return []
-
+        return [
+            SlotSet("name", None),
+            SlotSet("level", None),
+            SlotSet("stream", None),
+            SlotSet("academic_year", None)
+        ]
 
 class ActionListClasses(Action):
     def name(self) -> Text:
@@ -1146,9 +1550,21 @@ class ActionListClasses(Action):
                 
                 class_list = "Class List:\n\n"
                 for i, cls in enumerate(classes, 1):
-                    stream_text = f" - {cls['stream']}" if cls.get('stream') else ""
+                    level = cls['level']
                     student_count = cls.get('student_count', 0)
-                    class_list += f"{i}. {cls['name']} ({cls['level']}{stream_text}) - {student_count} student{'s' if student_count != 1 else ''} - {cls['academic_year']}\n"
+                    year = cls['academic_year']
+                    
+                    # Get streams
+                    streams = cls.get('streams', [])
+                    
+                    # Build the display string
+                    if streams:
+                        streams_text = f" [Streams: {', '.join(streams)}]"
+                    else:
+                        streams_text = ""
+                    
+                    # Format: "1. Class 8 - 0 students - 2025 [Streams: Red, White]"
+                    class_list += f"{i}. Class {level} - {student_count} student{'s' if student_count != 1 else ''} - {year}{streams_text}\n"
                 
                 dispatcher.utter_message(text=class_list)
                 
@@ -1480,4 +1896,531 @@ class ActionCompleteTerm(Action):
         return [
             SlotSet("term", None),
             SlotSet("academic_year", None)
+        ]
+    
+
+class ActionListAcademicYears(Action):
+    def name(self) -> Text:
+        return "action_list_academic_years"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            dispatcher.utter_message(text="Authentication required. Please log in first.")
+            return []
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "Content-Type": "application/json",
+                "X-School-ID": school_id
+            }
+            
+            response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/years",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                years = response.json()
+                
+                if not years:
+                    dispatcher.utter_message(
+                        text="No academic years found in the system.\n\n"
+                             "To create one: 'create academic year 2025'"
+                    )
+                    return []
+                
+                years_list = "Academic Years:\n\n"
+                
+                active_count = 0
+                inactive_count = 0
+                draft_count = 0
+                
+                for year in years:
+                    state = year["state"].upper()
+                    
+                    if state == "ACTIVE":
+                        indicator = "✓"
+                        state_desc = "ACTIVE - current year"
+                        active_count += 1
+                    elif state == "INACTIVE":
+                        indicator = "○"
+                        state_desc = "INACTIVE - past year"
+                        inactive_count += 1
+                    elif state == "DRAFT":
+                        indicator = "◐"
+                        state_desc = "DRAFT - not activated"
+                        draft_count += 1
+                    else:
+                        indicator = "•"
+                        state_desc = state
+                    
+                    # CORRECT - extract the nested f-string
+                year_number = year['year']
+                default_title = f'Academic Year {year_number}'
+                years_list += f"{indicator} {year_number}: {year.get('title', default_title)} ({state_desc})\n"
+                
+                years_list += f"\nTotal: {len(years)} year{'s' if len(years) != 1 else ''}"
+                years_list += f" ({active_count} active, {inactive_count} inactive, {draft_count} draft)"
+                
+                if active_count == 0 and draft_count > 0:
+                    years_list += f"\n\n⚠️ No active academic year\n"
+                    years_list += f"To activate a year:\n"
+                    for year in years:
+                        if year["state"].upper() == "DRAFT":
+                            years_list += f"• 'activate academic year {year['year']}'\n"
+                
+                dispatcher.utter_message(text=years_list)
+            else:
+                dispatcher.utter_message(text="Cannot retrieve academic years information.")
+        
+        except Exception as e:
+            logger.error(f"Error listing academic years: {e}")
+            dispatcher.utter_message(text="An error occurred while retrieving academic years.")
+        
+        return []
+    
+
+class ActionAddStreamToClass(Action):
+    def name(self) -> Text:
+        return "action_add_stream_to_class"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            dispatcher.utter_message(text="Authentication required.")
+            return []
+        
+        # Get slots
+        class_name = tracker.get_slot("class_name")
+        stream_slot = tracker.get_slot("stream")
+        
+        # Parse from message text to get ALL streams
+        message_text = tracker.latest_message.get("text", "").lower()
+        
+        # Extract class name from patterns if not in slot
+        if not class_name:
+            import re
+            # Patterns: "class X", "grade X", "create class X", "add to X"
+            class_pattern = r'(?:class|grade|form)\s+(\d+)'
+            class_match = re.search(class_pattern, message_text)
+            if class_match:
+                class_name = class_match.group(1)
+        
+        if not class_name:
+            dispatcher.utter_message(text="Please specify which class to add the stream to.\nExample: 'add stream Red to class 8'")
+            return []
+        
+        # CRITICAL: Extract ALL stream names from the text
+        def extract_all_streams(text: str, class_num: str) -> List[str]:
+            """
+            Extract multiple stream names from text like:
+            - "create grade 2 yellow and red"
+            - "add blue, green and purple to class 8"
+            - "create class 5 with streams red, blue, green"
+            """
+            import re
+            
+            # Common color/stream names (expand as needed)
+            stream_keywords = [
+                'red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 
+                'white', 'black', 'brown', 'gray', 'grey', 'violet', 'indigo',
+                'maroon', 'turquoise', 'crimson', 'scarlet', 'amber', 'cyan',
+                'magenta', 'gold', 'silver', 'bronze',
+                'north', 'south', 'east', 'west',
+                'alpha', 'beta', 'gamma', 'delta', 'omega',
+                'a', 'b', 'c', 'd', 'e',
+                'eagle', 'lion', 'tiger', 'falcon', 'hawk', 'phoenix', 'leopard',
+                'marvel', 'excellence', 'victory', 'mama', 'baba', 'silk'
+            ]
+            
+            # Remove class number from text to avoid confusion
+            text = re.sub(rf'\b(class|grade|form)\s*{class_num}\b', '', text, flags=re.IGNORECASE)
+            
+            # Split by commas and "and"
+            parts = re.split(r',|\s+and\s+', text)
+            
+            found_streams = []
+            for part in parts:
+                part = part.strip().lower()
+                # Check if this part contains a known stream keyword
+                for keyword in stream_keywords:
+                    if keyword in part.split():
+                        # Capitalize properly
+                        found_streams.append(keyword.title())
+                        break
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_streams = []
+            for stream in found_streams:
+                if stream.lower() not in seen:
+                    seen.add(stream.lower())
+                    unique_streams.append(stream)
+            
+            return unique_streams
+        
+        # Extract all streams from text
+        streams_to_add = extract_all_streams(message_text, str(class_name))
+        
+        # If no streams found via parsing, fall back to slot value
+        if not streams_to_add and stream_slot:
+            streams_to_add = [stream_slot]
+        
+        if not streams_to_add:
+            dispatcher.utter_message(text="Please specify the stream name(s).\nExample: 'add stream Red to class 8' or 'create class 8 yellow and red'")
+            return []
+        
+        logger.info(f"Adding streams {streams_to_add} to class {class_name}")
+        
+        # Normalize stream names
+        def normalize_stream_name(stream_name: str, class_name: str) -> str:
+            """Remove class number prefix if present and title case"""
+            stream_name = stream_name.strip()
+            parts = stream_name.split()
+            
+            if parts and parts[0].isdigit() and parts[0] == str(class_name):
+                stream_name = ' '.join(parts[1:]) if len(parts) > 1 else parts[0]
+            
+            if stream_name.strip().isdigit():
+                return None
+            
+            return stream_name.strip().title()
+        
+        # Normalize all stream names
+        normalized_streams = []
+        for stream in streams_to_add:
+            normalized = normalize_stream_name(stream, class_name)
+            if normalized:
+                normalized_streams.append(normalized)
+        
+        if not normalized_streams:
+            dispatcher.utter_message(
+                text=f"Invalid stream names. Please specify colors or names, not just numbers.\n"
+                     f"Example: 'add stream Red to class {class_name}'"
+            )
+            return [SlotSet("class_name", None), SlotSet("stream", None)]
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "X-School-ID": school_id
+            }
+            
+            # Get current academic year
+            setup_response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/current-setup",
+                headers=headers
+            )
+            
+            if setup_response.status_code != 200:
+                dispatcher.utter_message(text="Cannot retrieve academic setup.")
+                return []
+            
+            setup_data = setup_response.json()
+            current_year = setup_data.get("current_year")
+            
+            if not current_year:
+                dispatcher.utter_message(text="No academic year found. Please create one first.")
+                return []
+            
+            academic_year = current_year.get("year")
+            
+            # Find the class
+            classes_response = requests.get(
+                f"{FASTAPI_BASE_URL}/classes?search={class_name}&academic_year={academic_year}",
+                headers=headers
+            )
+            
+            if classes_response.status_code != 200:
+                dispatcher.utter_message(text=f"Could not find class '{class_name}'.")
+                return []
+            
+            classes_data = classes_response.json()
+            classes = classes_data.get("classes", [])
+            
+            if not classes:
+                dispatcher.utter_message(
+                    text=f"Class '{class_name}' not found for academic year {academic_year}.\n\n"
+                         f"Available classes: use 'list classes' to see all classes."
+                )
+                return []
+            
+            target_class = classes[0]
+            class_id = target_class["id"]
+            class_display_name = target_class["name"]
+            
+            # Track results
+            added_streams = []
+            failed_streams = []
+            skipped_streams = []
+            
+            # Try to add each stream
+            for stream_name in normalized_streams:
+                stream_response = requests.post(
+                    f"{FASTAPI_BASE_URL}/classes/{class_id}/streams",
+                    json={"name": stream_name},
+                    headers=headers
+                )
+                
+                if stream_response.status_code == 201:
+                    added_streams.append(stream_name)
+                elif stream_response.status_code == 409:
+                    skipped_streams.append(stream_name)
+                else:
+                    failed_streams.append(stream_name)
+            
+            # Build response message
+            messages = []
+            
+            if added_streams:
+                if len(added_streams) == 1:
+                    messages.append(
+                        f"✅ Stream '{added_streams[0]}' has been added to {class_display_name} ({academic_year})!"
+                    )
+                else:
+                    streams_list = "', '".join(added_streams)
+                    messages.append(
+                        f"✅ Streams '{streams_list}' have been added to {class_display_name} ({academic_year})!"
+                    )
+            
+            if skipped_streams:
+                if len(skipped_streams) == 1:
+                    messages.append(
+                        f"⚠️ Stream '{skipped_streams[0]}' already exists for {class_display_name}."
+                    )
+                else:
+                    streams_list = "', '".join(skipped_streams)
+                    messages.append(
+                        f"⚠️ Streams '{streams_list}' already exist for {class_display_name}."
+                    )
+            
+            if failed_streams:
+                streams_list = "', '".join(failed_streams)
+                messages.append(
+                    f"❌ Failed to add: '{streams_list}'. Please try again."
+                )
+            
+            if not messages:
+                messages.append("No streams were processed.")
+            
+            # Get updated streams list
+            streams_response = requests.get(
+                f"{FASTAPI_BASE_URL}/classes/{class_id}/streams",
+                headers=headers
+            )
+            
+            if streams_response.status_code == 200:
+                data = streams_response.json()
+                all_streams = [s['name'] for s in data.get("streams", [])]
+                if all_streams:
+                    messages.append(
+                        f"\nClass {class_display_name} now has streams: {', '.join(all_streams)}"
+                    )
+            
+            dispatcher.utter_message(text="\n".join(messages))
+        
+        except Exception as e:
+            logger.error(f"Error adding streams: {e}", exc_info=True)
+            dispatcher.utter_message(text="An error occurred while adding the streams.")
+        
+        return [
+            SlotSet("class_name", None),
+            SlotSet("stream", None)
+        ]
+    
+class ActionListStreams(Action):
+    def name(self) -> Text:
+        return "action_list_streams"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            dispatcher.utter_message(text="Authentication required.")
+            return []
+        
+        class_name = tracker.get_slot("class_name")
+        
+        if not class_name:
+            dispatcher.utter_message(text="Please specify which class.\nExample: 'show streams for class 8'")
+            return []
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "X-School-ID": school_id
+            }
+            
+            # Get current academic year
+            setup_response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/current-setup",
+                headers=headers
+            )
+            
+            if setup_response.status_code != 200:
+                dispatcher.utter_message(text="Cannot retrieve academic setup.")
+                return []
+            
+            setup_data = setup_response.json()
+            current_year = setup_data.get("current_year")
+            
+            if not current_year:
+                dispatcher.utter_message(text="No academic year found.")
+                return []
+            
+            academic_year = current_year.get("year")
+            
+            # Find the class
+            classes_response = requests.get(
+                f"{FASTAPI_BASE_URL}/classes?search={class_name}&academic_year={academic_year}",
+                headers=headers
+            )
+            
+            if classes_response.status_code != 200:
+                dispatcher.utter_message(text=f"Could not find class '{class_name}'.")
+                return []
+            
+            classes_data = classes_response.json()
+            classes = classes_data.get("classes", [])
+            
+            if not classes:
+                dispatcher.utter_message(text=f"Class '{class_name}' not found.")
+                return []
+            
+            target_class = classes[0]
+            class_id = target_class["id"]
+            class_display_name = target_class["name"]
+            
+            # Get streams
+            streams_response = requests.get(
+                f"{FASTAPI_BASE_URL}/classes/{class_id}/streams",
+                headers=headers
+            )
+            
+            if streams_response.status_code == 200:
+                data = streams_response.json()
+                streams = data.get("streams", [])
+                
+                if not streams:
+                    dispatcher.utter_message(
+                        text=f"No streams found for {class_display_name}.\n\n"
+                             f"To add a stream: 'add stream Red to class {class_name}'"
+                    )
+                else:
+                    stream_list = f"Streams for {class_display_name} ({academic_year}):\n\n"
+                    for i, stream in enumerate(streams, 1):
+                        stream_list += f"{i}. {stream['name']}\n"
+                    
+                    stream_list += f"\nTotal: {len(streams)} stream{'s' if len(streams) != 1 else ''}"
+                    dispatcher.utter_message(text=stream_list)
+            else:
+                dispatcher.utter_message(text="Could not retrieve streams.")
+        
+        except Exception as e:
+            logger.error(f"Error listing streams: {e}", exc_info=True)
+            dispatcher.utter_message(text="An error occurred while listing streams.")
+        
+        return [SlotSet("class_name", None)]
+    
+
+class ActionRenameClass(Action):
+    def name(self) -> Text:
+        return "action_rename_class"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            dispatcher.utter_message(text="Authentication required.")
+            return []
+        
+        old_class_name = tracker.get_slot("class_name")
+        new_name = tracker.get_slot("name")
+        
+        if not old_class_name or not new_name:
+            dispatcher.utter_message(
+                text="Please specify both the current class name and the new name.\n"
+                     "Example: 'rename class 5 to class 55'"
+            )
+            return []
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "X-School-ID": school_id
+            }
+            
+            # Find the class
+            response = requests.get(
+                f"{FASTAPI_BASE_URL}/classes",
+                headers=headers,
+                params={"search": old_class_name}
+            )
+            
+            if response.status_code != 200:
+                dispatcher.utter_message(text=f"Could not find class '{old_class_name}'.")
+                return []
+            
+            classes = response.json().get("classes", [])
+            
+            if not classes:
+                dispatcher.utter_message(text=f"Class '{old_class_name}' not found.")
+                return []
+            
+            if len(classes) > 1:
+                dispatcher.utter_message(
+                    text=f"Multiple classes found matching '{old_class_name}'. Please be more specific."
+                )
+                return []
+            
+            target_class = classes[0]
+            class_id = target_class["id"]
+            
+            # Update the class name
+            update_data = {"name": new_name}
+            
+            update_response = requests.put(
+                f"{FASTAPI_BASE_URL}/classes/{class_id}",
+                json=update_data,
+                headers=headers
+            )
+            
+            if update_response.status_code == 200:
+                dispatcher.utter_message(
+                    text=f"✅ Class renamed successfully!\n\n"
+                         f"Old name: {old_class_name}\n"
+                         f"New name: {new_name}"
+                )
+            else:
+                error_data = update_response.json() if update_response.content else {}
+                error_msg = error_data.get('detail', 'Failed to rename class')
+                dispatcher.utter_message(text=f"Error: {error_msg}")
+        
+        except Exception as e:
+            logger.error(f"Error renaming class: {e}", exc_info=True)
+            dispatcher.utter_message(text="An error occurred while renaming the class.")
+        
+        return [
+            SlotSet("class_name", None),
+            SlotSet("name", None)
         ]

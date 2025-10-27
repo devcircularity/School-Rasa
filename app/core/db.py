@@ -1,6 +1,7 @@
 # app/core/db.py - SQLAlchemy database setup with connection pooling
+# app/core/db.py
 from sqlalchemy import create_engine, text, event, pool
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool, QueuePool
 from typing import Generator, Optional, Any

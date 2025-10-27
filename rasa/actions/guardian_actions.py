@@ -1,12 +1,15 @@
-from rasa_sdk import Action, Tracker
+from rasa_sdk import Action, Tracker, FormValidationAction
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.events import SlotSet
+from rasa_sdk.types import DomainDict
 import requests
 import logging
+import re  # CRITICAL: Add this import
 from typing import Dict, Text, Any, List
 
 logger = logging.getLogger(__name__)
 FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
+
 
 class ActionAddGuardian(Action):
     def name(self) -> Text:
@@ -23,42 +26,28 @@ class ActionAddGuardian(Action):
             dispatcher.utter_message(text="Authentication required.")
             return []
         
+        # Get all required slots
         guardian_name = tracker.get_slot("guardian_name")
         student_name = tracker.get_slot("student_name")
         admission_no = tracker.get_slot("admission_no")
         phone = tracker.get_slot("phone")
         email = tracker.get_slot("email")
-        relationship = tracker.get_slot("relationship")
+        relationship = tracker.get_slot("relationship") or "GUARDIAN"
         
+        # VALIDATION: Check all required fields
         if not guardian_name:
-            dispatcher.utter_message(
-                text="Please provide the guardian's name.\n\n**Example:**\n\n"
-                     "```\nAdd Mary Wanjiku, mother to Eric with phone 0712345678 and email mary@gmail.com\n```"
-            )
+            dispatcher.utter_message(text="Guardian name is required.")
             return []
         
-        if not student_name and not admission_no:
-            dispatcher.utter_message(
-                text="Please specify which student.\n\n**Example:**\n\n"
-                     "```\nAdd Mary Wanjiku, mother to Eric with phone 0712345678 and email mary@gmail.com\n```"
-            )
-            return []
-        
-        # VALIDATE PHONE
         if not phone:
-            dispatcher.utter_message(
-                text="Please provide the guardian's phone number.\n\n**Example:**\n\n"
-                     "```\nAdd Mary Wanjiku, mother to Eric with phone 0712345678 and email mary@gmail.com\n```"
-            )
+            dispatcher.utter_message(text="Phone number is required.")
             return []
         
-        # VALIDATE EMAIL (MANDATORY)
         if not email:
-            dispatcher.utter_message(
-                text="Email is required for all guardians.\n\n**Example:**\n\n"
-                     "```\nAdd Mary Wanjiku, mother to Eric with phone 0712345678 and email mary@gmail.com\n```"
-            )
+            dispatcher.utter_message(text="Email is required.")
             return []
+        
+        logger.info(f"Adding guardian: {guardian_name} for student: {student_name or admission_no}")
         
         try:
             headers = {
@@ -73,6 +62,9 @@ class ActionAddGuardian(Action):
                 search_params["admission_no"] = clean_admission
             elif student_name:
                 search_params["search"] = student_name
+            else:
+                dispatcher.utter_message(text="Could not identify student.")
+                return []
             
             students_response = requests.get(
                 f"{FASTAPI_BASE_URL}/students",
@@ -92,19 +84,19 @@ class ActionAddGuardian(Action):
                 return []
             
             if len(students) > 1:
-                dispatcher.utter_message(text="Multiple students found. Please specify by admission number.")
+                msg = f"Multiple students found:\n\n"
+                for i, s in enumerate(students[:5], 1):
+                    msg += f"{i}. {s['first_name']} {s['last_name']} (#{s['admission_no']})\n"
+                msg += "\nPlease specify by admission number."
+                dispatcher.utter_message(text=msg)
                 return []
             
             student = students[0]
             student_id = student["id"]
             full_name = f"{student['first_name']} {student['last_name']}"
             
-            # Parse guardian name
-            clean_guardian_name = guardian_name.strip()
-            import re
-            clean_guardian_name = re.sub(r'\([^)]*\)', '', clean_guardian_name).strip()
-            
-            name_parts = clean_guardian_name.split()
+            # Parse guardian name into first and last
+            name_parts = guardian_name.strip().split()
             if len(name_parts) < 2:
                 first_name = name_parts[0]
                 last_name = name_parts[0]
@@ -112,28 +104,13 @@ class ActionAddGuardian(Action):
                 first_name = name_parts[0]
                 last_name = " ".join(name_parts[1:])
             
-            # Clean relationship
-            if relationship:
-                clean_relationship = relationship.strip().replace("(", "").replace(")", "").upper()
-                relationship_map = {
-                    "MOM": "MOTHER",
-                    "DAD": "FATHER",
-                    "MUMMY": "MOTHER",
-                    "DADDY": "FATHER",
-                    "GRANDMA": "GRANDMOTHER",
-                    "GRANDPA": "GRANDFATHER"
-                }
-                clean_relationship = relationship_map.get(clean_relationship, clean_relationship)
-            else:
-                clean_relationship = "GUARDIAN"
-            
             # Create guardian
             guardian_data = {
                 "first_name": first_name,
                 "last_name": last_name,
-                "email": email,
-                "phone": phone,
-                "relationship": clean_relationship,
+                "email": email.lower().strip() if email else None,
+                "phone": phone.strip() if phone else None,
+                "relationship": relationship.upper() if relationship else "GUARDIAN",
                 "student_id": student_id
             }
             
@@ -157,8 +134,11 @@ class ActionAddGuardian(Action):
             else:
                 error_data = response.json() if response.content else {}
                 error_msg = error_data.get('detail', 'Failed to add guardian')
-                dispatcher.utter_message(text=f"Error: {error_msg}")
+                dispatcher.utter_message(text=f"❌ Error: {error_msg}")
         
+        except AttributeError as e:
+            logger.error(f"AttributeError adding guardian: {e}", exc_info=True)
+            dispatcher.utter_message(text="Missing required information. Please ensure all fields are provided.")
         except Exception as e:
             logger.error(f"Error adding guardian: {e}", exc_info=True)
             dispatcher.utter_message(text="An error occurred while adding the guardian.")
@@ -256,8 +236,8 @@ class ActionGetGuardians(Action):
                 guardians_sorted = sorted(
                     guardians, 
                     key=lambda g: (
-                        not g.get('is_primary', False),  # Primary first (False < True, so not inverts)
-                        g.get('full_name', '')  # Then alphabetically
+                        not g.get('is_primary', False),
+                        g.get('full_name', '')
                     )
                 )
                 
@@ -275,9 +255,7 @@ class ActionGetGuardians(Action):
                         msg += f"   Email: {guardian['email']}\n"
                     msg += "\n"
                 
-                # Remove trailing newline
                 msg = msg.rstrip()
-                
                 dispatcher.utter_message(text=msg)
             else:
                 dispatcher.utter_message(text="Could not retrieve guardians.")
@@ -329,7 +307,7 @@ class ActionListStudentsWithoutGuardians(Action):
                 
                 msg = f"Students without guardians ({len(students)}):\n\n"
                 
-                for i, student in enumerate(students[:20], 1):  # Limit to 20
+                for i, student in enumerate(students[:20], 1):
                     msg += f"{i}. {student['full_name']} (#{student['admission_no']})\n"
                 
                 if len(students) > 20:
@@ -346,7 +324,8 @@ class ActionListStudentsWithoutGuardians(Action):
             dispatcher.utter_message(text="An error occurred.")
         
         return []
-    
+
+
 class ActionSetPrimaryGuardian(Action):
     def name(self) -> Text:
         return "action_set_primary_guardian"
@@ -468,21 +447,21 @@ class ActionSetPrimaryGuardian(Action):
             )
             
             if update_response.status_code == 200:
-                msg = f"Primary guardian updated successfully!\n\n"
-                msg += f"Student: {full_name} (#{student['admission_no']})\n"
-                msg += f"Primary Guardian: {target_guardian['full_name']}\n"
+                msg = f"✅ Primary guardian updated successfully!\n\n"
+                msg += f"**Student:** {full_name} (#{student['admission_no']})\n"
+                msg += f"**Primary Guardian:** {target_guardian['full_name']}\n"
                 if target_guardian.get('relationship'):
-                    msg += f"Relationship: {target_guardian['relationship']}\n"
+                    msg += f"**Relationship:** {target_guardian['relationship']}\n"
                 if target_guardian.get('phone'):
-                    msg += f"Phone: {target_guardian['phone']}\n"
+                    msg += f"**Phone:** {target_guardian['phone']}\n"
                 if target_guardian.get('email'):
-                    msg += f"Email: {target_guardian['email']}"
+                    msg += f"**Email:** {target_guardian['email']}"
                 
                 dispatcher.utter_message(text=msg)
             else:
                 error_data = update_response.json() if update_response.content else {}
                 error_msg = error_data.get('detail', 'Failed to update primary guardian')
-                dispatcher.utter_message(text=f"Error: {error_msg}")
+                dispatcher.utter_message(text=f"❌ Error: {error_msg}")
         
         except Exception as e:
             logger.error(f"Error setting primary guardian: {e}", exc_info=True)
@@ -493,7 +472,7 @@ class ActionSetPrimaryGuardian(Action):
             SlotSet("student_name", None),
             SlotSet("admission_no", None)
         ]
-    
+
 
 class ActionUpdateGuardian(Action):
     def name(self) -> Text:
@@ -594,20 +573,20 @@ class ActionUpdateGuardian(Action):
             if response.status_code == 200:
                 data = response.json()
                 
-                msg = f"Guardian updated successfully!\n\n"
-                msg += f"Name: {data['full_name']}\n"
+                msg = f"✅ Guardian updated successfully!\n\n"
+                msg += f"**Name:** {data['full_name']}\n"
                 if data.get('relationship'):
-                    msg += f"Relationship: {data['relationship']}\n"
+                    msg += f"**Relationship:** {data['relationship']}\n"
                 if data.get('phone'):
-                    msg += f"Phone: {data['phone']}\n"
+                    msg += f"**Phone:** {data['phone']}\n"
                 if data.get('email'):
-                    msg += f"Email: {data['email']}"
+                    msg += f"**Email:** {data['email']}"
                 
                 dispatcher.utter_message(text=msg)
             else:
                 error_data = response.json() if response.content else {}
                 error_msg = error_data.get('detail', 'Failed to update guardian')
-                dispatcher.utter_message(text=f"Error: {error_msg}")
+                dispatcher.utter_message(text=f"❌ Error: {error_msg}")
         
         except Exception as e:
             logger.error(f"Error updating guardian: {e}", exc_info=True)
@@ -619,3 +598,128 @@ class ActionUpdateGuardian(Action):
             SlotSet("phone", None),
             SlotSet("relationship", None)
         ]
+
+
+class ActionListAllGuardians(Action):
+    def name(self) -> Text:
+        return "action_list_all_guardians"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            dispatcher.utter_message(text="Authentication required.")
+            return []
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "X-School-ID": school_id
+            }
+            
+            # Get all guardians
+            response = requests.get(
+                f"{FASTAPI_BASE_URL}/guardians/",
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                guardians = response.json()
+                
+                if not guardians:
+                    dispatcher.utter_message(
+                        text="No guardians found in the system.\n\n"
+                             "To add a guardian:\n"
+                             "'Add guardian [name] ([relationship]) with phone [number] and email [email] for student [admission_no]'"
+                    )
+                    return []
+                
+                # Sort guardians alphabetically
+                guardians_sorted = sorted(guardians, key=lambda g: g.get('full_name', ''))
+                
+                msg = f"**All Guardians ({len(guardians)}):**\n\n"
+                
+                for i, guardian in enumerate(guardians_sorted[:50], 1):
+                    msg += f"**{i}. {guardian['full_name']}**\n"
+                    
+                    if guardian.get('relationship'):
+                        msg += f"   • Relationship: {guardian['relationship']}\n"
+                    if guardian.get('phone'):
+                        msg += f"   • Phone: {guardian['phone']}\n"
+                    if guardian.get('email'):
+                        msg += f"   • Email: {guardian['email']}\n"
+                    
+                    if guardian.get('students'):
+                        student_names = [s.get('full_name', 'Unknown') for s in guardian['students']]
+                        msg += f"   • Students: {', '.join(student_names)}\n"
+                    
+                    msg += "\n"
+                
+                if len(guardians) > 50:
+                    msg += f"... and {len(guardians) - 50} more guardians\n"
+                
+                dispatcher.utter_message(text=msg.rstrip())
+            else:
+                dispatcher.utter_message(text="Could not retrieve guardians.")
+        
+        except Exception as e:
+            logger.error(f"Error listing all guardians: {e}", exc_info=True)
+            dispatcher.utter_message(text="An error occurred while retrieving guardians.")
+        
+        return []
+
+
+class ValidateGuardianCreationForm(FormValidationAction):
+    def name(self) -> Text:
+        return "validate_guardian_creation_form"
+    
+    def validate_student_name(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: DomainDict,
+    ) -> Dict[Text, Any]:
+        """Validate student name - ONLY capture when explicitly asking for student"""
+        
+        # CRITICAL: Check if student_name was already set in the initial intent
+        initial_student = None
+        for event in reversed(list(tracker.events)):
+            if event.get("event") == "user":
+                entities = event.get("parse_data", {}).get("entities", [])
+                for entity in entities:
+                    if entity.get("entity") == "student_name":
+                        initial_student = entity.get("value")
+                        break
+                if initial_student:
+                    break
+        
+        # If student was captured in initial intent, use that
+        if initial_student and not slot_value:
+            logger.info(f"✅ Using student_name from initial intent: {initial_student}")
+            return {"student_name": initial_student}
+        
+        # Otherwise, validate normally
+        user_text = tracker.latest_message.get('text', '')
+        
+        if slot_value and len(str(slot_value).strip()) > 0:
+            return {"student_name": str(slot_value).strip()}
+        
+        if user_text and len(user_text.strip()) > 0:
+            # Don't accept phone numbers or emails as student names
+            if re.match(r'^[\d\s\-\+\(\)]+$', user_text):
+                dispatcher.utter_message(text="That looks like a phone number. Please provide the student's name or admission number.")
+                return {"student_name": None}
+            
+            if '@' in user_text:
+                dispatcher.utter_message(text="That looks like an email. Please provide the student's name or admission number.")
+                return {"student_name": None}
+            
+            return {"student_name": user_text.strip()}
+        
+        dispatcher.utter_message(text="Please provide the student's name or admission number.")
+        return {"student_name": None}

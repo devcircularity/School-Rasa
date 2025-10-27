@@ -1,0 +1,164 @@
+version: "3.1"
+
+nlu:
+# --- GREET ---
+- intent: greet
+  examples: |
+    - hey there
+    - hello assistant
+    - good morning
+    - hi, how are you?
+    - hey rasa
+
+# --- GOODBYE ---
+- intent: goodbye
+  examples: |
+    - bye
+    - goodbye
+    - see you later
+    - talk to you soon
+    - have a good day
+
+# --- CREATE CLASS ---
+- intent: create_class
+  examples: |
+    - create class 8
+    - add class 6 Blue
+    - make a new class grade 5 red
+    - create grade 7 for 2025
+    - add a new class form 1A
+
+# --- ADD STREAM ---
+- intent: add_stream_to_class
+  examples: |
+    - add stream Red to class 8
+    - add new stream Blue for class 7
+    - add white stream to grade 6
+    - create stream Green under class 9
+    - attach stream Alpha to form 2
+
+# --- LIST CLASSES ---
+- intent: list_classes
+  examples: |
+    - list all classes
+    - show my classes
+    - display the class list
+    - what classes do we have?
+    - get all classes for 2025
+
+# --- CREATE STUDENT ---
+- intent: create_student
+  examples: |
+    - create student John Doe in class 8 Red
+    - add new student Mary to grade 5
+    - register student Peter in form 1 Blue
+    - add a pupil called Amina in class 7
+    - enroll student Brian in class 9 Yellow
+
+# --- PROVIDE ADMISSION NUMBER ---
+- intent: provide_admission_number
+  examples: |
+    - admission number 12345
+    - #4567
+    - admission is #A123
+    - use admission 001B
+    - student number 9988
+
+# --- LIST STUDENTS ---
+- intent: list_students
+  examples: |
+    - list all students
+    - show students
+    - get student list
+    - display enrolled students
+    - which students do we have?
+
+# --- LIST STUDENTS BY CLASS ---
+- intent: list_students_by_class
+  examples: |
+    - list students in class 8 Red
+    - show students from class 7
+    - get list of students in 9 Yellow
+    - display learners in grade 6
+    - which students are in form 1?
+
+# --- GET SCHOOL INFO ---
+- intent: get_school_info
+  examples: |
+    - show school details
+    - get my school info
+    - what is our school name?
+    - view the school setup
+    - show school information
+
+# --- CREATE ACADEMIC YEAR ---
+- intent: create_academic_year
+  examples: |
+    - create academic year 2025
+    - add new school year 2024
+    - set up the year 2025
+    - make academic year 2026
+    - start new year 2025
+
+# --- LIST ACADEMIC YEARS ---
+- intent: list_academic_years
+  examples: |
+    - list academic years
+    - show all school years
+    - get all academic years
+    - display available years
+    - what academic years exist?
+
+# --- PROMOTE STUDENTS ---
+- intent: promote_students
+  examples: |
+    - promote all students to next class
+    - move students to the next grade
+    - advance students for 2025
+    - run student promotions
+    - promote learners to new classes
+
+# --- ADD GUARDIAN ---
+- intent: add_guardian
+  examples: |
+    - add guardian for John
+    - register parent Mary for student Amina
+    - add father to student Peter
+    - create guardian for Brian
+    - add mother to student John Doe
+
+# --- RECORD PAYMENT ---
+- intent: record_payment
+  examples: |
+    - record payment of 5000 for Amina
+    - add payment for student Brian
+    - update fees payment for John
+    - mark fees as paid for Mary
+    - log payment 10000 for class 8 Red
+
+# --- LIST INVOICES ---
+- intent: list_invoices
+  examples: |
+    - list invoices
+    - show all invoices
+    - get invoice list
+    - display invoices
+    - what invoices are pending?
+
+# --- LIST STUDENTS WITH BALANCES ---
+- intent: list_students_with_balances
+  examples: |
+    - list students with unpaid fees
+    - show students who owe fees
+    - get students with balances
+    - display unpaid students
+    - who hasn’t paid fees?
+
+# --- BROADCAST MESSAGE ---
+- intent: broadcast_message_to_all_parents
+  examples: |
+    - send message to all parents
+    - broadcast to all guardians
+    - send school announcement
+    - notify all parents
+    - message every parent about school reopening

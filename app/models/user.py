@@ -7,6 +7,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.models.base import Base
+from app.models.password_reset import PasswordResetToken
+
 import enum
 
 class UserRole(str, enum.Enum):

@@ -131,6 +131,9 @@ export const chatService = {
   },
 
   // Send a message to a specific conversation using the RESTful endpoint
+  // services/chats.ts - Updated timeout for AI requests
+
+  // Send a message to a specific conversation using the RESTful endpoint
   async sendMessageToConversation(
     conversationId: string, 
     message: string, 
@@ -149,7 +152,9 @@ export const chatService = {
         message,
         context,
         attachments
-      } as ChatMessage)
+      } as ChatMessage, {
+        timeout: 60000  // ✅ INCREASED from 20000 to 60000 (60 seconds for AI processing)
+      })
       
       console.log('Message sent response:', {
         conversation_id: data.conversation_id,

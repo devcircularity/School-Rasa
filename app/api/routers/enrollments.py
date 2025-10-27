@@ -9,12 +9,11 @@ import logging
 
 from app.core.db import get_db
 from app.api.deps.tenancy import require_school
-# FIXED: Import Enrollment from enrollment.py, not academic.py
 from app.models.enrollment import Enrollment
 from app.models.academic import AcademicTerm, AcademicYear
 from app.models.student import Student
 from app.models.class_model import Class
-from app.schemas.academic import EnrollmentCreate, EnrollmentOut
+from app.schemas.enrollment import EnrollmentCreate, EnrollmentOut  # FIXED: Import from correct location
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -93,7 +92,7 @@ async def create_enrollment(
         class_id=enrollment_data.class_id,
         term_id=enrollment_data.term_id,
         status="ENROLLED",
-        joined_on=enrollment_data.joined_on or date.today()
+        enrolled_date=enrollment_data.enrolled_date or date.today()
     )
     
     try:
@@ -109,4 +108,13 @@ async def create_enrollment(
             detail="Error creating enrollment"
         )
     
-    return new_enrollment
+    return EnrollmentOut(
+        id=new_enrollment.id,
+        student_id=new_enrollment.student_id,
+        class_id=new_enrollment.class_id,
+        term_id=new_enrollment.term_id,
+        status=new_enrollment.status,
+        enrolled_date=new_enrollment.enrolled_date,
+        withdrawn_date=new_enrollment.withdrawn_date,
+        invoice_generated=new_enrollment.invoice_generated
+    )

@@ -1,4 +1,4 @@
-# app/schemas/academic.py - Updated for UUID types
+# app/schemas/academic.py - Fixed schema
 from datetime import date
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
@@ -25,7 +25,7 @@ class AcademicYearOut(BaseModel):
 class AcademicTermCreate(BaseModel):
     term: int
     title: str
-    academic_year: int  # ADD THIS
+    academic_year: int  # This is correct - used for input
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -38,7 +38,7 @@ class AcademicTermOut(BaseModel):
     state: str
     start_date: Optional[date]
     end_date: Optional[date]
-    year_id: UUID
+    academic_year_id: UUID  # FIXED: Changed from year_id to match the model
 
 # Enrollment schemas
 class EnrollmentCreate(BaseModel):

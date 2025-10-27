@@ -1,13 +1,13 @@
 from pydantic import BaseModel, EmailStr, Field, validator
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
 class GuardianCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=64)
     last_name: str = Field(..., min_length=1, max_length=64)
-    email: EmailStr  # Changed from Optional - now mandatory
-    phone: str = Field(..., max_length=32)  # Changed from Optional - now mandatory
+    email: EmailStr  # Mandatory
+    phone: str = Field(..., max_length=32)  # Mandatory
     relationship: Optional[str] = Field(None, max_length=32)
     student_id: Optional[UUID] = None
     
@@ -28,8 +28,8 @@ class GuardianOut(BaseModel):
     first_name: str
     last_name: str
     full_name: str
-    email: str  # Changed from Optional
-    phone: str  # Changed from Optional
+    email: str
+    phone: str
     relationship: Optional[str]
     created_at: datetime
     
@@ -38,6 +38,10 @@ class GuardianOut(BaseModel):
 
 class GuardianDetail(GuardianOut):
     is_primary: bool = False
+    students: Optional[List[Dict[str, Any]]] = []  # Add this field
+    
+    class Config:
+        from_attributes = True
 
 class StudentGuardianLink(BaseModel):
     student_id: UUID

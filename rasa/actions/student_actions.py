@@ -14,8 +14,20 @@ import logging
 import re
 from datetime import datetime
 from typing import Dict, Text, Any, List
+import logging
+import sys
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
+
+# Force logging to be visible
+logger.setLevel(logging.INFO)
 
 # Configuration - should match your FastAPI setup
 FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
@@ -76,13 +88,39 @@ class ActionCreateStudent(Action):
         if class_name:
             class_name = normalize_class_name(class_name)
         
+        # UPDATED: Process student name - REQUIRE at least 2 parts (first + last)
         name_parts = student_name.strip().split()
-        if len(name_parts) == 1:
+        
+        if len(name_parts) < 2:
+            dispatcher.utter_message(
+                text="⚠️ **Full name required**\n\n"
+                     "Please provide at least first name and last name.\n\n"
+                     "Examples:\n"
+                     "• 'Joshua Mwangi'\n"
+                     "• 'Mary Wanjiku Kamau'\n"
+                     "• 'Eric Otieno'"
+            )
+            return [
+                SlotSet("student_name", None),
+                SlotSet("admission_no", None),
+                SlotSet("class_name", None)
+            ]
+        
+        # Split name intelligently
+        if len(name_parts) == 2:
+            # Two parts: first and last
             first_name = name_parts[0]
-            last_name = ""
+            last_name = name_parts[1]
+        elif len(name_parts) == 3:
+            # Three parts: first, middle, last - combine middle and last as last_name
+            first_name = name_parts[0]
+            last_name = " ".join(name_parts[1:])  # "Wanjiku Kamau"
         else:
+            # More than 3 parts: first part is first_name, rest is last_name
             first_name = name_parts[0]
             last_name = " ".join(name_parts[1:])
+        
+        logger.info(f"Processed name - First: '{first_name}', Last: '{last_name}'")
         
         try:
             headers = {
@@ -353,6 +391,7 @@ class ActionCreateStudent(Action):
             SlotSet("student_name", None),
             SlotSet("class_name", None)
         ]
+
 
 
 class ActionListStudents(Action):
@@ -1178,9 +1217,10 @@ class ActionAutoGenerateAdmission(Action):
         auth_token = metadata.get("auth_token")
         school_id = metadata.get("school_id")
         
-        pending_student_name = tracker.get_slot("pending_student_name")
+        # FIXED: Check both pending_student_name AND student_name (for form flow)
+        student_name = tracker.get_slot("student_name") or tracker.get_slot("pending_student_name")
         
-        if not pending_student_name:
+        if not student_name:
             dispatcher.utter_message(
                 text="I don't see a student creation in progress. Please start by creating a student first."
             )
@@ -1191,42 +1231,20 @@ class ActionAutoGenerateAdmission(Action):
             return []
         
         try:
-            headers = {
-                "Authorization": f"Bearer {auth_token}",
-                "Content-Type": "application/json",
-                "X-School-ID": school_id
-            }
+            # Generate admission number
+            generated_admission_no = str(int(datetime.now().timestamp()))[-6:]
             
-            students_response = requests.get(
-                f"{FASTAPI_BASE_URL}/students?limit=1",
-                headers=headers
+            dispatcher.utter_message(
+                text=f"✅ Generated admission number: **{generated_admission_no}**"
             )
             
-            if students_response.status_code == 200:
-                generated_admission_no = str(int(datetime.now().timestamp()))[-6:]
-                
-                dispatcher.utter_message(
-                    text=f"Generated admission number {generated_admission_no} for {pending_student_name}. "
-                         f"Now, which class should {pending_student_name} be enrolled in?"
-                )
-                
-                return [SlotSet("pending_admission_no", generated_admission_no)]
-            else:
-                dispatcher.utter_message(
-                    text="Could not generate admission number. Please provide one manually."
-                )
-                return []
+            # Return the slot for the form to use
+            return [SlotSet("admission_no", generated_admission_no)]
             
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logger.error(f"Error auto-generating admission number: {e}")
             dispatcher.utter_message(
-                text="Sorry, I'm having trouble generating an admission number. Please provide one manually."
-            )
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error in ActionAutoGenerateAdmission: {e}")
-            dispatcher.utter_message(
-                text="An unexpected error occurred. Please provide an admission number manually."
+                text="Sorry, I couldn't generate an admission number. Please provide one manually."
             )
             return []
 
@@ -1412,7 +1430,7 @@ class ActionGetStudentDetails(Action):
 class ValidateStudentCreationForm(FormValidationAction):
     def name(self) -> Text:
         return "validate_student_creation_form"
-
+    
     def validate_student_name(
         self,
         slot_value: Any,
@@ -1420,11 +1438,128 @@ class ValidateStudentCreationForm(FormValidationAction):
         tracker: Tracker,
         domain: DomainDict,
     ) -> Dict[Text, Any]:
-        """Validate student name"""
-        if not slot_value or len(str(slot_value).strip()) < 2:
-            dispatcher.utter_message(text="Please provide a valid student name.")
+        """
+        Validate student name - STRICTLY REQUIRES at least first and last name.
+        Rejects single names and prompts user to provide full name.
+        """
+        
+        intent = tracker.latest_message.get("intent", {}).get("name", "")
+        message_text = tracker.latest_message.get("text", "").strip()
+        entities = tracker.latest_message.get("entities", [])
+        
+        logger.info("="*60)
+        logger.info("VALIDATE STUDENT NAME - STRICT CHECK")
+        logger.info("="*60)
+        logger.info(f"Intent: {intent}")
+        logger.info(f"Raw message: '{message_text}'")
+        logger.info(f"Slot value: '{slot_value}'")
+        logger.info(f"All entities: {entities}")
+        logger.info("="*60)
+        
+        # Check for clear interruption intents
+        clear_interruptions = [
+            "goodbye", "greet", "cancel_form", "stop_form", "restart_form", 
+            "list_students", "list_classes", "check_academic_setup", 
+            "create_class", "create_academic_year", "search_student"
+        ]
+        
+        if intent in clear_interruptions:
+            logger.info(f"❌ REJECTED: Intent '{intent}' is an interruption")
             return {"student_name": None}
-        return {"student_name": str(slot_value).strip()}
+        
+        # CRITICAL: Process BOTH raw text AND slot_value, but validate name parts strictly
+        import re
+        
+        # Step 1: Get the candidate name (prefer raw text, fallback to slot_value)
+        candidate_name = None
+        
+        # Try raw text first (cleaned)
+        if message_text:
+            clean_text = message_text
+            
+            # Remove common prefixes
+            clean_text = re.sub(
+                r'^(the\s+student\s+name\s+is\s+|student\s+name\s+is\s+|name\s+is\s+|it\'?s\s+|the\s+name\s+is\s+|my\s+name\s+is\s+)',
+                '', 
+                clean_text, 
+                flags=re.IGNORECASE
+            ).strip()
+            
+            # Check if it's NOT a command
+            command_patterns = [
+                r'^(create|add|new|make|list|show|delete|remove)\s',
+                r'^(cancel|stop|quit|exit|help)\s*$',
+                r'^(yes|no|ok|okay)\s*$'
+            ]
+            
+            is_command = False
+            for pattern in command_patterns:
+                if re.match(pattern, clean_text.lower()):
+                    is_command = True
+                    break
+            
+            # Use clean_text if it's not a command and not just digits
+            if not is_command and clean_text and not clean_text.isdigit():
+                candidate_name = clean_text
+                logger.info(f"Using raw text as candidate: '{candidate_name}'")
+        
+        # Fallback to slot_value if raw text didn't work
+        if not candidate_name and slot_value:
+            candidate_name = str(slot_value).strip()
+            logger.info(f"Using slot_value as candidate: '{candidate_name}'")
+        
+        # Step 2: STRICT VALIDATION - Check if candidate has at least 2 name parts
+        if candidate_name:
+            # Basic length check
+            if len(candidate_name) < 3:  # At least "A B" = 3 chars minimum
+                logger.info(f"❌ REJECTED: Too short ('{candidate_name}')")
+                dispatcher.utter_message(
+                    text="⚠️ **Full name required**\n\n"
+                         "Please provide **first name AND last name** (minimum 2 words).\n\n"
+                         "**Examples:**\n"
+                         "✓ Joshua Mwangi\n"
+                         "✓ Mary Wanjiku Kamau\n"
+                         "✓ Eric Otieno\n\n"
+                         "❌ NOT accepted: Just 'Joshua'\n\n"
+                         "What is the student's **full name**?"
+                )
+                return {"student_name": None}
+            
+            # CRITICAL: Split and count name parts
+            name_parts = candidate_name.split()
+            
+            logger.info(f"Name parts found: {len(name_parts)} - {name_parts}")
+            
+            # STRICT CHECK: Must have at least 2 parts
+            if len(name_parts) < 2:
+                logger.info(f"❌ REJECTED: Only {len(name_parts)} name part(s) - '{candidate_name}'")
+                dispatcher.utter_message(
+                    text="⚠️ **Full name required**\n\n"
+                         "Please provide **first name AND last name** (minimum 2 words).\n\n"
+                         "**Examples:**\n"
+                         "✓ Joshua Mwangi\n"
+                         "✓ Mary Wanjiku Kamau\n"
+                         "✓ Eric Otieno\n\n"
+                         f"❌ You provided: '{candidate_name}' (only 1 name)\n\n"
+                         "What is the student's **full name**?"
+                )
+                return {"student_name": None}
+            
+            # SUCCESS: Name has at least 2 parts
+            logger.info(f"✅ ACCEPTED: '{candidate_name}' ({len(name_parts)} parts: {name_parts})")
+            return {"student_name": candidate_name}
+        
+        # Step 3: No valid input found
+        logger.info("❌ REJECTED: No valid name input found")
+        dispatcher.utter_message(
+            text="⚠️ Please provide the student's **full name**\n\n"
+                 "**Required:** First name AND last name (minimum 2 words)\n\n"
+                 "**Examples:**\n"
+                 "• Joshua Mwangi\n"
+                 "• Mary Wanjiku Kamau\n"
+                 "• Eric Otieno"
+        )
+        return {"student_name": None}
 
     def validate_admission_no(
         self,
@@ -1433,24 +1568,71 @@ class ValidateStudentCreationForm(FormValidationAction):
         tracker: Tracker,
         domain: DomainDict,
     ) -> Dict[Text, Any]:
-        """Validate admission number"""
+        """
+        Validate admission number with context-aware entity correction.
+        CRITICAL FIX: If class_name entity was extracted when asking for admission_no,
+        check if it looks like an admission number and use it instead.
+        """
         
+        entities = tracker.latest_message.get("entities", [])
+        message_text = tracker.latest_message.get("text", "").strip()
+        
+        logger.info(f"validate_admission_no - slot_value: {slot_value}, message: {message_text}, entities: {entities}")
+        
+        import re
+        
+        # CRITICAL FIX: Check if class_name was extracted when we need admission_no
         if not slot_value:
-            return {"admission_no": None}
+            for entity in entities:
+                if entity.get("entity") == "class_name":
+                    value = str(entity.get("value", "")).strip()
+                    
+                    # Check if it looks like an admission number:
+                    # Short alphanumeric (2-6 chars) like "1B7", "A12", "2C9"
+                    if re.match(r'^[A-Z0-9]{2,6}$', value, re.IGNORECASE):
+                        logger.info(f"✅ CORRECTED: Treating '{value}' as admission_no (was extracted as class_name)")
+                        slot_value = value.upper()
+                        break
         
-        # Strip ALL # symbols from the beginning
-        clean_value = str(slot_value).lstrip("#").strip()
+        # If still no value, try raw message text
+        if not slot_value and message_text:
+            clean_text = message_text.replace("#", "").strip()
+            
+            # Check if it's a simple alphanumeric code
+            if re.match(r'^[A-Z0-9]{2,10}$', clean_text, re.IGNORECASE):
+                logger.info(f"✅ Using raw text as admission_no: '{clean_text}'")
+                slot_value = clean_text.upper()
         
-        if clean_value.lower() in ["auto", "auto generate", "generate", "auto-generate"]:
-            return {"admission_no": "AUTO_GENERATE"}
+        # Check for auto-generate keywords
+        if slot_value:
+            clean_lower = str(slot_value).lower().strip()
+            auto_keywords = [
+                "auto", "auto generate", "generate", "auto-generate", 
+                "automatic", "automatically", "generate one", "create one",
+                "autogenerate", "make one"
+            ]
+            
+            if clean_lower in auto_keywords or "auto" in clean_lower:
+                logger.info(f"✅ Auto-generate admission number requested")
+                return {"admission_no": "AUTO_GENERATE"}
         
-        if not clean_value.isdigit():
-            dispatcher.utter_message(
-                text="Admission number should be numeric. Please provide a valid number or say 'auto generate'."
-            )
-            return {"admission_no": None}
+        # Validate the admission number
+        if slot_value:
+            clean_value = str(slot_value).replace("#", "").strip().upper()
+            
+            # Additional validation: not too long
+            if len(clean_value) > 10:
+                dispatcher.utter_message(
+                    text="Admission number seems too long. Please provide a valid admission number (max 10 characters).\n"
+                         "• Or say 'auto generate' to create one automatically"
+                )
+                return {"admission_no": None}
+            
+            logger.info(f"✅ Accepted admission_no: {clean_value}")
+            return {"admission_no": clean_value}
         
-        return {"admission_no": clean_value}
+        # No valid admission number found
+        return {"admission_no": None}
 
     def validate_class_name(
         self,
@@ -1459,11 +1641,167 @@ class ValidateStudentCreationForm(FormValidationAction):
         tracker: Tracker,
         domain: DomainDict,
     ) -> Dict[Text, Any]:
-        """Validate class name"""
-        if not slot_value or len(str(slot_value).strip()) < 1:
-            dispatcher.utter_message(text="Please provide a valid class name.")
+        """Validate class name - verify it exists in the system"""
+        
+        if not slot_value:
             return {"class_name": None}
-        return {"class_name": str(slot_value).strip()}
+        
+        clean_value = str(slot_value).strip()
+        
+        if len(clean_value) < 1:
+            dispatcher.utter_message(
+                text="Please provide a valid class name.\n"
+                     "• Examples: 'Grade 4', '8A', 'Form 1', '6 White'\n"
+                     "• Type 'list classes' to see all classes\n"
+                     "• Type 'cancel' to stop"
+            )
+            return {"class_name": None}
+        
+        # Get auth credentials
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            # Can't verify, just normalize and accept
+            normalized = normalize_class_name(clean_value)
+            logger.warning(f"Class validation SKIPPED (no auth): '{clean_value}' -> '{normalized}'")
+            return {"class_name": normalized}
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "X-School-ID": school_id
+            }
+            
+            # Get current academic year
+            setup_response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/current-setup",
+                headers=headers
+            )
+            
+            if setup_response.status_code != 200:
+                # Can't check, just normalize and accept
+                normalized = normalize_class_name(clean_value)
+                logger.warning(f"Class validation SKIPPED (no setup): '{clean_value}' -> '{normalized}'")
+                return {"class_name": normalized}
+            
+            setup_data = setup_response.json()
+            current_year = setup_data.get("current_year", {}).get("year")
+            
+            if not current_year:
+                normalized = normalize_class_name(clean_value)
+                return {"class_name": normalized}
+            
+            # Get classes for current year
+            classes_response = requests.get(
+                f"{FASTAPI_BASE_URL}/classes",
+                headers=headers,
+                params={"academic_year": current_year}
+            )
+            
+            if classes_response.status_code != 200:
+                normalized = normalize_class_name(clean_value)
+                return {"class_name": normalized}
+            
+            classes = classes_response.json().get("classes", [])
+            
+            # Try to find matching class
+            clean_lower = clean_value.lower().replace("class ", "").strip()
+            matches = []
+            
+            for cls in classes:
+                cls_name_lower = cls["name"].lower()
+                
+                # Exact match
+                if cls_name_lower == clean_lower:
+                    matches.append(cls)
+                    continue
+                
+                # Check with streams
+                streams = cls.get("streams", [])
+                for stream in streams:
+                    full_name = f"{cls['name']} {stream}".lower()
+                    
+                    if full_name == clean_lower:
+                        matches.append(cls)
+                        break
+                    
+                    # Partial match: "6 white" where cls is "6" and stream is "white"
+                    if " " in clean_lower:
+                        parts = clean_lower.split()
+                        if len(parts) >= 2:
+                            # Check if first part matches class and last part matches stream
+                            if cls_name_lower == parts[0] and stream.lower() == parts[-1]:
+                                matches.append(cls)
+                                break
+            
+            if matches:
+                # Found matching class
+                normalized = normalize_class_name(clean_value)
+                logger.info(f"✅ Class validation SUCCESS: '{clean_value}' -> '{normalized}' (found in system)")
+                return {"class_name": normalized}
+            else:
+                # No match found - class will be auto-created by ActionCreateStudent
+                # But we should warn the user
+                normalized = normalize_class_name(clean_value)
+                
+                # Show available classes for reference
+                if len(classes) > 0:
+                    class_list = self._format_class_list(classes)
+                    dispatcher.utter_message(
+                        text=f"⚠️ Class '{clean_value}' not found in current classes.\n\n"
+                             f"It will be created automatically if you proceed.\n\n"
+                             f"**Current classes:**\n{class_list}\n\n"
+                             f"• Continue with '{clean_value}'? Type it again to confirm\n"
+                             f"• Or choose from the list above\n"
+                             f"• Type 'cancel' to stop"
+                    )
+                    return {"class_name": None}  # Ask again to confirm
+                
+                logger.info(f"⚠️ Class validation WARNING: '{clean_value}' -> '{normalized}' (will be auto-created)")
+                return {"class_name": normalized}
+        
+        except Exception as e:
+            logger.error(f"Error validating class: {e}")
+            # Fallback: just normalize
+            normalized = normalize_class_name(clean_value)
+            logger.warning(f"Class validation ERROR: '{clean_value}' -> '{normalized}'")
+            return {"class_name": normalized}
+
+    def _format_class_list(self, classes: List[Dict]) -> str:
+        """Helper to format class list for display"""
+        lines = []
+        
+        # Group by level
+        levels = {}
+        for cls in classes:
+            level = cls.get("level", cls["name"])
+            streams = cls.get("streams", [])
+            
+            if level not in levels:
+                levels[level] = []
+            
+            if streams:
+                levels[level].extend(streams)
+        
+        # Format output (limit to 10 for readability)
+        count = 0
+        for level in sorted(levels.keys(), key=lambda x: (not x[0].isdigit(), x)):
+            if count >= 10:
+                break
+            
+            streams = levels[level]
+            if streams:
+                lines.append(f"• **{level}**: {', '.join(streams)}")
+            else:
+                lines.append(f"• **{level}**")
+            count += 1
+        
+        if len(classes) > 10:
+            lines.append(f"• *...and {len(classes) - 10} more*")
+        
+        return "\n".join(lines) if lines else "• No classes available"
     
 class ActionListStudentsWithBalances(Action):
     """Alias for listing students with outstanding balances"""
@@ -1475,3 +1813,150 @@ class ActionListStudentsWithBalances(Action):
         # Delegate to the unpaid invoices action
         action = ActionListUnpaidInvoices()
         return action.run(dispatcher, tracker, domain)
+    
+    
+class ActionHandleFormInterruption(Action):
+    def name(self) -> Text:
+        return "action_handle_form_interruption"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        # Get the intent that interrupted
+        intent = tracker.latest_message.get("intent", {}).get("name")
+        
+        # Map intents to actions
+        action_map = {
+            "list_classes": "action_list_classes",
+            "list_students": "action_list_students",
+            "check_academic_setup": "action_check_academic_setup",
+            "list_academic_terms": "action_list_academic_terms",
+            "get_current_term": "action_get_current_term",
+            "ask_help": "action_help",
+        }
+        
+        # Execute the corresponding action
+        action_name = action_map.get(intent)
+        if action_name:
+            # You can't directly call another action here, but you can
+            # return the appropriate message based on intent
+            # OR use the action server's ability to chain actions
+            pass
+        
+        # Get the current slot being requested
+        requested_slot = tracker.get_slot("requested_slot")
+        
+        # Provide a gentle transition back
+        if requested_slot:
+            slot_prompts = {
+                "student_name": "Great! Now, what's the student's name?",
+                "admission_no": "Thanks! What's the admission number? (Say 'auto generate' to create one)",
+                "class_name": "Perfect! Which class should the student join? (e.g., 'Grade 4', '8A')"
+            }
+            
+            prompt = slot_prompts.get(requested_slot, f"Let's continue with the {requested_slot}")
+            dispatcher.utter_message(text=prompt)
+        
+        # Return empty list to continue form collection
+        return []
+    
+
+class ActionAskClassName(Action):
+    """Custom slot mapping that shows available classes"""
+    def name(self) -> Text:
+        return "action_ask_class_name"
+
+    def run(self, dispatcher: CollectingDispatcher, 
+            tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        
+        metadata = tracker.latest_message.get("metadata", {})
+        auth_token = metadata.get("auth_token")
+        school_id = metadata.get("school_id")
+        
+        if not auth_token:
+            dispatcher.utter_message(
+                text="Which class should the student be enrolled in?\n\n"
+                     "Examples: 'Grade 4', '8A', 'Form 1', 'PP1'"
+            )
+            return []
+        
+        try:
+            headers = {
+                "Authorization": f"Bearer {auth_token}",
+                "Content-Type": "application/json",
+                "X-School-ID": school_id
+            }
+            
+            # Get current academic year
+            setup_response = requests.get(
+                f"{FASTAPI_BASE_URL}/academic/current-setup",
+                headers=headers
+            )
+            
+            if setup_response.status_code == 200:
+                setup_data = setup_response.json()
+                current_year = setup_data.get("current_year", {}).get("year")
+                
+                # Get classes for current year
+                classes_response = requests.get(
+                    f"{FASTAPI_BASE_URL}/classes",
+                    headers=headers,
+                    params={"academic_year": current_year} if current_year else {}
+                )
+                
+                if classes_response.status_code == 200:
+                    classes_data = classes_response.json()
+                    classes = classes_data.get("classes", [])
+                    
+                    if classes:
+                        # Build a nice list of available classes
+                        msg = "**Which class should the student be enrolled in?**\n\n"
+                        msg += "**Available classes:**\n"
+                        
+                        # Group by level for better readability
+                        levels = {}
+                        for cls in classes[:15]:  # Limit to 15 for readability
+                            level = cls.get("level", cls["name"])
+                            streams = cls.get("streams", [])
+                            
+                            if level not in levels:
+                                levels[level] = []
+                            
+                            if streams:
+                                for stream in streams:
+                                    levels[level].append(f"{level} {stream}")
+                            else:
+                                levels[level].append(level)
+                        
+                        # Format the output
+                        for level in sorted(levels.keys(), key=lambda x: (not x[0].isdigit(), x)):
+                            classes_in_level = levels[level]
+                            if len(classes_in_level) == 1:
+                                msg += f"• {classes_in_level[0]}\n"
+                            else:
+                                msg += f"• {level}: {', '.join([c.split()[-1] if ' ' in c else c for c in classes_in_level])}\n"
+                        
+                        if len(classes) > 15:
+                            msg += f"\n*...and {len(classes) - 15} more classes*\n"
+                        
+                        msg += "\n💡 Type the class name (e.g., 'Grade 4', '8A')"
+                        msg += "\n💡 Or say 'list classes' to see all details"
+                        
+                        dispatcher.utter_message(text=msg)
+                        return []
+            
+            # Fallback if we couldn't get classes
+            dispatcher.utter_message(
+                text="Which class should the student be enrolled in?\n\n"
+                     "💡 Say 'list classes' to see available classes\n"
+                     "💡 Or provide a class name: 'Grade 4', '8A', 'Form 1'"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in ActionAskClassName: {e}")
+            dispatcher.utter_message(
+                text="Which class should the student be enrolled in?\n\n"
+                     "Examples: 'Grade 4', '8A', 'Form 1'"
+            )
+        
+        return []

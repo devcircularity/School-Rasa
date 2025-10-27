@@ -1,10 +1,11 @@
-# rasa/actions/__init__.py
 """
 Rasa Custom Actions Package
-Organized by functionality: students, academic management, fees, guardians, and notifications
+Organized by functionality: students, academic management, fees, guardians, notifications, and Ollama-powered actions
 """
 
-# Import all student actions
+# ============================================
+# STUDENT ACTIONS
+# ============================================
 from actions.student_actions import (
     ActionCreateStudent,
     ActionListStudents,
@@ -20,7 +21,9 @@ from actions.student_actions import (
     ValidateStudentCreationForm,
 )
 
-# Import all academic/class management actions
+# ============================================
+# ACADEMIC/CLASS MANAGEMENT ACTIONS
+# ============================================
 from actions.academic_actions import (
     ActionCreateAcademicYear,
     ActionCreateAcademicTerm,
@@ -40,7 +43,9 @@ from actions.academic_actions import (
     ActionCompleteTerm,
 )
 
-# Import all fee actions (keep these from existing fee_actions.py)
+# ============================================
+# FEE ACTIONS
+# ============================================
 from actions.fee_actions import (
     ActionCreateFeeStructure,
     ActionListFeeStructures,
@@ -57,7 +62,7 @@ from actions.fee_actions import (
     ActionListInvoices,
     ActionListInvoicesByClass,
     ActionListUnpaidInvoices,
-    ActionListStudentsWithBalances,  # NEW: Added this line
+    ActionListStudentsWithBalances,
     ActionCancelInvoice,
     ActionRecordPayment,
     ActionSendPaymentNotification,
@@ -66,27 +71,53 @@ from actions.fee_actions import (
     ActionBroadcastMessageToAllParents,
 )
 
-# Import guardian actions (keep these from existing guardian_actions.py)
+# ============================================
+# GUARDIAN ACTIONS
+# ============================================
 from actions.guardian_actions import (
     ActionAddGuardian,
     ActionGetGuardians,
     ActionListStudentsWithoutGuardians,
     ActionSetPrimaryGuardian,
     ActionUpdateGuardian,
+    ActionListAllGuardians
 )
 
-# Import notification actions (keep these from existing notification_actions.py)
+# ============================================
+# NOTIFICATION ACTIONS
+# ============================================
 from actions.notification_actions import (
     ActionNotifyPendingInvoices,
     ActionSendGuardianMessage,
 )
 
+# ============================================
+# SCHOOL INFO ACTIONS
+# ============================================
 from actions.school_info_actions import ActionGetSchoolInfo
 
+# ============================================
+# FORM HELPERS
+# ============================================
+from actions.form_helpers import (
+    ActionResumeStudentForm,
+    ActionHandleFormInterruption,
+)
 
-# Make all actions discoverable by Rasa
+# ============================================
+# FORM VALIDATORS
+# ============================================
+from actions.form_validators import (
+    ActionValidateStudentCreationPrerequisites,
+)
+
+
+
+# ============================================
+# EXPORT ALL ACTIONS
+# ============================================
 __all__ = [
-    # Student actions
+    # ========== Student actions ==========
     "ActionCreateStudent",
     "ActionListStudents",
     "ActionListStudentsByClass",
@@ -100,7 +131,7 @@ __all__ = [
     "ActionGetStudentDetails",
     "ValidateStudentCreationForm",
     
-    # Academic/Class management actions
+    # ========== Academic/Class management actions ==========
     "ActionCreateAcademicYear",
     "ActionCreateAcademicTerm",
     "ActionCheckAcademicSetup",
@@ -118,7 +149,7 @@ __all__ = [
     "ActionHelp",
     "ActionCompleteTerm",
     
-    # Fee actions
+    # ========== Fee actions ==========
     "ActionCreateFeeStructure",
     "ActionListFeeStructures",
     "ActionGenerateInvoices",
@@ -134,7 +165,7 @@ __all__ = [
     "ActionListInvoices",
     "ActionListInvoicesByClass",
     "ActionListUnpaidInvoices",
-    "ActionListStudentsWithBalances",  # NEW: Added this line
+    "ActionListStudentsWithBalances",
     "ActionCancelInvoice",
     "ActionRecordPayment",
     "ActionSendPaymentNotification",
@@ -142,17 +173,27 @@ __all__ = [
     "ActionNotifyParentsWithBalances",
     "ActionBroadcastMessageToAllParents",
     
-    # Guardian actions
+    # ========== Guardian actions ==========
     "ActionAddGuardian",
     "ActionGetGuardians",
     "ActionListStudentsWithoutGuardians",
     "ActionSetPrimaryGuardian",
     "ActionUpdateGuardian",
+    "ActionListAllGuardians",
     
-    # Notification actions
+    # ========== Notification actions ==========
     "ActionNotifyPendingInvoices",
     "ActionSendGuardianMessage",
 
-    #school info actions
+    # ========== School info actions ==========
     "ActionGetSchoolInfo",
+
+    # ========== Form helpers ==========
+    "ActionResumeStudentForm",
+    "ActionHandleFormInterruption",
+
+    # ========== Form validators ==========
+    "ActionValidateStudentCreationPrerequisites",
+
+    "ActionOllamaBridge",
 ]

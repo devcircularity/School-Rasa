@@ -223,7 +223,7 @@ async def create_academic_term(
     existing_term = db.execute(
         select(AcademicTerm).where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == year_uuid,
+            AcademicTerm.academic_year_id == year_uuid,  # FIXED
             AcademicTerm.term == term_data.term
         )
     ).scalar_one_or_none()
@@ -237,7 +237,7 @@ async def create_academic_term(
     # Create academic term
     new_term = AcademicTerm(
         school_id=UUID(school_id),
-        year_id=year_uuid,
+        academic_year_id=year_uuid,  # FIXED
         term=term_data.term,
         title=term_data.title,
         start_date=term_data.start_date,
@@ -281,7 +281,7 @@ async def get_terms_for_year(
         select(AcademicTerm)
         .where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == year_uuid
+            AcademicTerm.academic_year_id == year_uuid  # FIXED
         )
         .order_by(AcademicTerm.term)
     ).scalars().all()
@@ -324,7 +324,7 @@ async def get_current_term(
         select(AcademicTerm)
         .where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == current_year.id,
+            AcademicTerm.academic_year_id == current_year.id,  # FIXED
             AcademicTerm.state == "ACTIVE"
         )
     ).scalar_one_or_none()
@@ -335,7 +335,7 @@ async def get_current_term(
             select(AcademicTerm)
             .where(
                 AcademicTerm.school_id == UUID(school_id),
-                AcademicTerm.year_id == current_year.id
+                AcademicTerm.academic_year_id == current_year.id  # FIXED
             )
             .order_by(AcademicTerm.term.desc())
         ).scalar_one_or_none()
@@ -347,6 +347,8 @@ async def get_current_term(
         )
     
     return AcademicTermOut.model_validate(current_term)
+
+
 @router.put("/terms/{term_id}/activate")
 async def activate_term(
     term_id: str,
@@ -383,7 +385,7 @@ async def activate_term(
     all_terms = db.execute(
         select(AcademicTerm).where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == term.year_id
+            AcademicTerm.academic_year_id == term.academic_year_id  # FIXED
         )
     ).scalars().all()
     
@@ -610,12 +612,12 @@ async def get_current_academic_setup(
         ).scalars().first()
     
     current_term = None
-    if current_year:
+    if current_year:  # Check if current_year exists
         current_term = db.execute(
             select(AcademicTerm)
             .where(
                 AcademicTerm.school_id == UUID(school_id),
-                AcademicTerm.year_id == current_year.id,
+                AcademicTerm.academic_year_id == current_year.id,  # FIXED: Changed from year_id
                 AcademicTerm.state == "ACTIVE"
             )
             .order_by(AcademicTerm.term.desc())
@@ -626,7 +628,7 @@ async def get_current_academic_setup(
                 select(AcademicTerm)
                 .where(
                     AcademicTerm.school_id == UUID(school_id),
-                    AcademicTerm.year_id == current_year.id
+                    AcademicTerm.academic_year_id == current_year.id  # FIXED: Changed from year_id
                 )
                 .order_by(AcademicTerm.term.desc())
             ).scalars().first()
@@ -636,93 +638,9 @@ async def get_current_academic_setup(
         "current_term": AcademicTermOut.model_validate(current_term) if current_term else None,
         "setup_complete": bool(current_year and current_term),
         "needs_year": not current_year,
-        "needs_term": current_year and not current_term  # Add this for better error handling
+        "needs_term": current_year and not current_term
     }
 
-
-
-@router.post("/years/{year_id}/terms", response_model=AcademicTermOut, status_code=status.HTTP_201_CREATED)
-async def create_academic_term(
-    year_id: str,
-    term_data: AcademicTermCreate,
-    ctx: Dict[str, Any] = Depends(require_school),
-    db: Session = Depends(get_db)
-):
-    """Create a new academic term - ONLY for ACTIVE academic years"""
-    user = ctx["user"]
-    school_id = ctx["school_id"]
-    
-    try:
-        year_uuid = UUID(year_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid academic year ID format"
-        )
-    
-    # Verify academic year exists AND is ACTIVE
-    year = db.execute(
-        select(AcademicYear).where(
-            AcademicYear.id == year_uuid,
-            AcademicYear.school_id == UUID(school_id)
-        )
-    ).scalar_one_or_none()
-    
-    if not year:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Academic year not found"
-        )
-    
-    # CRITICAL FIX: Block term creation for non-active years
-    if year.state != "ACTIVE":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot create terms for {year.state} academic year {year.year}. "
-                   f"Please activate it first using: 'activate academic year {year.year}'"
-        )
-    
-    # Check if term already exists for this year
-    existing_term = db.execute(
-        select(AcademicTerm).where(
-            AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == year_uuid,
-            AcademicTerm.term == term_data.term
-        )
-    ).scalar_one_or_none()
-    
-    if existing_term:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Term {term_data.term} already exists for {year.year}"
-        )
-    
-    # Create academic term (no auto-activation logic)
-    new_term = AcademicTerm(
-        school_id=UUID(school_id),
-        year_id=year_uuid,
-        term=term_data.term,
-        title=term_data.title,
-        start_date=term_data.start_date,
-        end_date=term_data.end_date,
-        state="ACTIVE"  # Terms start active within their active year
-    )
-    
-    db.add(new_term)
-    
-    try:
-        db.commit()
-        db.refresh(new_term)
-        logger.info(f"Academic term created: {new_term.title} by {user.email}")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error creating academic term: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error creating academic term"
-        )
-    
-    return AcademicTermOut.model_validate(new_term)
 
 @router.put("/years/{year_id}/activate")
 async def activate_academic_year(
@@ -815,7 +733,7 @@ async def deactivate_academic_year(
     
     # Check if it has been used (has terms/enrollments)
     has_terms = db.execute(
-        select(AcademicTerm).where(AcademicTerm.year_id == year_uuid)
+        select(AcademicTerm).where(AcademicTerm.academic_year_id == year_uuid)  # FIXED
     ).first() is not None
     
     # Set appropriate state based on usage
@@ -979,11 +897,11 @@ async def complete_term(
             detail=f"Academic year {academic_year} not found"
         )
     
-    # Now find the term using year_id
+    # Now find the term using academic_year_id
     term_obj = db.execute(
         select(AcademicTerm).where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == year_obj.id,
+            AcademicTerm.academic_year_id == year_obj.id,  # FIXED
             AcademicTerm.term == term
         )
     ).scalar_one_or_none()
@@ -1004,7 +922,6 @@ async def complete_term(
         "term_id": str(term_obj.id),
         "state": term_obj.state
     }
-
 
 @router.post("/terms", response_model=AcademicTermOut, status_code=status.HTTP_201_CREATED)
 async def create_term(
@@ -1040,7 +957,7 @@ async def create_term(
     existing_term = db.execute(
         select(AcademicTerm).where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == year_obj.id,
+            AcademicTerm.academic_year_id == year_obj.id,  # FIXED
             AcademicTerm.term == term_data.term
         )
     ).scalar_one_or_none()
@@ -1054,7 +971,7 @@ async def create_term(
     # Create term
     new_term = AcademicTerm(
         school_id=UUID(school_id),
-        year_id=year_obj.id,
+        academic_year_id=year_obj.id,  # FIXED
         term=term_data.term,
         title=term_data.title,
         start_date=term_data.start_date,
@@ -1079,7 +996,7 @@ async def create_term(
 
 
 @router.get("/current-term")
-async def get_current_term(
+async def get_current_term_simple(
     ctx: Dict[str, Any] = Depends(require_school),
     db: Session = Depends(get_db)
 ):
@@ -1104,7 +1021,7 @@ async def get_current_term(
     active_term = db.execute(
         select(AcademicTerm).where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == active_year.id,
+            AcademicTerm.academic_year_id == active_year.id,  # FIXED
             AcademicTerm.state == "ACTIVE"
         )
     ).scalar_one_or_none()
@@ -1156,3 +1073,112 @@ async def get_current_academic_year(
         "start_date": active_year.start_date,
         "end_date": active_year.end_date
     }
+
+
+# ==================== ACADEMIC STATUS (for UI status bar) ====================
+
+@router.get("/status")
+async def get_academic_status(
+    ctx: Dict[str, Any] = Depends(require_school),
+    db: Session = Depends(get_db)
+):
+    """Get current academic status for the status bar UI"""
+    school_id = ctx["school_id"]
+    
+    current_year = db.execute(
+        select(AcademicYear)
+        .where(
+            AcademicYear.school_id == UUID(school_id),
+            AcademicYear.state == "ACTIVE"
+        )
+        .order_by(AcademicYear.year.desc())
+    ).scalars().first()
+    
+    if not current_year:
+        current_year = db.execute(
+            select(AcademicYear)
+            .where(AcademicYear.school_id == UUID(school_id))
+            .order_by(AcademicYear.year.desc())
+        ).scalars().first()
+    
+    active_term = None
+    if current_year:
+        active_term = db.execute(
+            select(AcademicTerm)
+            .where(
+                AcademicTerm.school_id == UUID(school_id),
+                AcademicTerm.academic_year_id == current_year.id,
+                AcademicTerm.state == "ACTIVE"
+            )
+            .order_by(AcademicTerm.term.desc())
+        ).scalars().first()
+        
+        if not active_term:
+            active_term = db.execute(
+                select(AcademicTerm)
+                .where(
+                    AcademicTerm.school_id == UUID(school_id),
+                    AcademicTerm.academic_year_id == current_year.id
+                )
+                .order_by(AcademicTerm.term.desc())
+            ).scalars().first()
+    
+    has_classes = db.execute(
+        select(func.count(Class.id))
+        .where(Class.school_id == UUID(school_id))
+    ).scalar() > 0
+    
+    warnings = []
+    if not current_year:
+        warnings.append("No academic year configured. Create one to get started.")
+    elif current_year.state != "ACTIVE":
+        warnings.append(f"Academic year {current_year.year} is {current_year.state}. Please activate it.")
+    
+    if current_year and not active_term:
+        warnings.append(f"No active term for {current_year.year}. Create and activate a term.")
+    elif active_term and active_term.state != "ACTIVE":
+        warnings.append(f"Term {active_term.term} is {active_term.state}. Please activate it.")
+    
+    if not has_classes:
+        warnings.append("No classes created. Students need classes for enrollment.")
+    
+    setup_complete = (
+        current_year is not None and 
+        current_year.state == "ACTIVE" and
+        active_term is not None and 
+        active_term.state == "ACTIVE" and
+        has_classes
+    )
+    
+    # Build response with proper null checking
+    response = {
+        "academic_year": None,
+        "active_term": None,
+        "has_classes": has_classes,
+        "setup_complete": setup_complete,
+        "warnings": warnings
+    }
+    
+    # Only add academic_year data if it exists
+    if current_year:
+        response["academic_year"] = {
+            "id": str(current_year.id),
+            "name": current_year.title or f"Academic Year {current_year.year}",
+            "year": current_year.year,
+            "start_date": current_year.start_date.isoformat() if current_year.start_date else None,
+            "end_date": current_year.end_date.isoformat() if current_year.end_date else None,
+            "state": current_year.state
+        }
+    
+    # Only add active_term data if it exists
+    if active_term:
+        response["active_term"] = {
+            "id": str(active_term.id),
+            "name": active_term.title,
+            "term": active_term.term,
+            "start_date": active_term.start_date.isoformat() if active_term.start_date else None,
+            "end_date": active_term.end_date.isoformat() if active_term.end_date else None,
+            "state": active_term.state
+        }
+    
+    return response

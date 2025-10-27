@@ -20,7 +20,7 @@ dist/
 *.log
 
 # Rasa
-models/
+/models/       # ignore only top-level models folder
 results/
 logs/
 

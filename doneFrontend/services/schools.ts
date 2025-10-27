@@ -1,3 +1,4 @@
+// services/schools.ts
 import { api } from './api'
 
 type CreateSchoolRequest = {
@@ -8,6 +9,8 @@ type CreateSchoolRequest = {
   address?: string
   currency?: string
   academic_year_start?: string
+  boarding_type?: 'DAY' | 'BOARDING' | 'BOTH'
+  gender_type?: 'BOYS' | 'GIRLS' | 'MIXED'
 }
 
 type UpdateSchoolRequest = {
@@ -18,10 +21,12 @@ type UpdateSchoolRequest = {
   address?: string
   currency?: string
   academic_year_start?: string
+  boarding_type?: 'DAY' | 'BOARDING' | 'BOTH'
+  gender_type?: 'BOYS' | 'GIRLS' | 'MIXED'
 }
 
 export type School = {
-  id: string // Updated to string to match UUID
+  id: string
   name: string
   short_code?: string
   email?: string
@@ -29,6 +34,8 @@ export type School = {
   address?: string
   currency?: string
   academic_year_start?: string
+  boarding_type?: 'DAY' | 'BOARDING' | 'BOTH'
+  gender_type?: 'BOYS' | 'GIRLS' | 'MIXED'
   owner_user_id: string
 }
 
@@ -85,11 +92,6 @@ export type MobileDeviceListResponse = {
 }
 
 export const schoolService = {
-  async list() {
-    const { data } = await api.get('/api/schools')
-    return data as School[]
-  },
-  
   async mine() {
     const { data } = await api.get('/api/schools/mine')
     return data as SchoolMineItem[]
@@ -106,8 +108,12 @@ export const schoolService = {
   },
   
   async get(id: string) {
-    const { data } = await api.get(`/api/schools/${id}`)
-    return data as SchoolLite
+    const { data } = await api.get(`/api/schools/${id}`, {
+      headers: {
+        'X-School-ID': id
+      }
+    })
+    return data as School
   },
 
   async getOverview(schoolId: string) {
@@ -120,7 +126,11 @@ export const schoolService = {
   },
   
   async update(id: string, body: UpdateSchoolRequest) {
-    const { data } = await api.put(`/api/schools/${id}`, body)
+    const { data } = await api.put(`/api/schools/${id}`, body, {
+      headers: {
+        'X-School-ID': id
+      }
+    })
     return data as School
   },
 
@@ -175,7 +185,6 @@ export const schoolService = {
 
 // Export individual functions for convenience
 export const createSchool = schoolService.create
-export const listSchools = schoolService.list
 export const getSchool = schoolService.get
 export const getSchoolOverview = schoolService.getOverview
 export const updateSchool = schoolService.update

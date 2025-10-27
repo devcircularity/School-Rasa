@@ -1,7 +1,15 @@
-# Updated rules.yml - Enhanced with form-based student creation for context awareness
 version: "3.1"
 
 rules:
+
+# ============================================
+# BASIC CONVERSATION RULES
+# ============================================
+
+- rule: Say hello anytime the user says hello
+  steps:
+  - intent: greet
+  - action: utter_greet
 
 - rule: Say goodbye anytime the user says goodbye
   steps:
@@ -18,65 +26,35 @@ rules:
   - intent: ask_help
   - action: action_help
 
-# UPDATED: Form-based student creation for context awareness
-- rule: Activate student creation form
+# ============================================
+# FALLBACK HANDLING
+# ============================================
+
+- rule: Handle fallback
+  steps:
+  - intent: nlu_fallback
+  - action: utter_default
+
+# ============================================
+# STUDENT MANAGEMENT RULES
+# ============================================
+
+- rule: Create student
   steps:
   - intent: create_student
-  - action: student_creation_form
-  - active_loop: student_creation_form
-
-- rule: Submit student creation form
-  condition:
-  - active_loop: student_creation_form
-  steps:
-  - action: student_creation_form
-  - active_loop: null
   - action: action_create_student
 
-- rule: Handle admission number in form context
-  condition:
-  - active_loop: student_creation_form
+- rule: Provide student details
   steps:
-  - intent: provide_admission_number
-  - action: student_creation_form
+  - intent: provide_student_details
+  - action: action_create_student
 
-- rule: Handle auto generate in form context
-  condition:
-  - active_loop: student_creation_form
-  steps:
-  - intent: auto_generate_admission
-  - action: action_auto_generate_admission
-  - action: student_creation_form
-
-- rule: Handle class assignment in form context
-  condition:
-  - active_loop: student_creation_form
-  steps:
-  - intent: assign_student_to_class
-  - action: student_creation_form
-
-# Keep this for backward compatibility (non-form flow)
-- rule: Assign student to class (follow-up)
-  steps:
-  - intent: assign_student_to_class
-  - action: action_assign_student_to_class
-
-- rule: List all students
+- rule: List students
   steps:
   - intent: list_students
   - action: action_list_students
 
-- rule: List students by class
-  steps:
-  - intent: list_students_by_class
-  - action: action_list_students_by_class
-
-- rule: Show unassigned students
-  steps:
-  - intent: show_unassigned_students
-  - action: action_list_unassigned_students
-
-- rule: Search for a student
+- rule: Search student
   steps:
   - intent: search_student
   - action: action_search_student
@@ -84,11 +62,50 @@ rules:
 - rule: Get student details
   steps:
   - intent: get_student_details
-  - action: action_search_student
+  - action: action_get_student_details
+
+- rule: Show unassigned students
+  steps:
+  - intent: show_unassigned_students
+  - action: action_show_unassigned_students
+
+- rule: Assign student to class
+  steps:
+  - intent: assign_student_to_class
+  - action: action_assign_student_to_class
+
+- rule: Reenroll student
+  steps:
+  - intent: reenroll_student
+  - action: action_reenroll_student
+
+- rule: Provide admission number
+  steps:
+  - intent: provide_admission_number
+  - action: action_provide_admission_number
+
+- rule: Auto generate admission number
+  steps:
+  - intent: auto_generate_admission
+  - action: action_auto_generate_admission
+
+- rule: List students by class
+  steps:
+  - intent: list_students_by_class
+  - action: action_list_students_by_class
+
+# ============================================
+# CLASS MANAGEMENT RULES
+# ============================================
 
 - rule: Create a class
   steps:
   - intent: create_class
+  - action: action_create_class
+
+- rule: Add a class
+  steps:
+  - intent: add_class
   - action: action_create_class
 
 - rule: List all classes
@@ -100,6 +117,30 @@ rules:
   steps:
   - intent: list_empty_classes
   - action: action_list_empty_classes
+
+- rule: Delete class
+  steps:
+  - intent: delete_class
+  - action: action_delete_class
+
+- rule: Add stream to class
+  steps:
+  - intent: add_stream_to_class
+  - action: action_add_stream_to_class
+
+- rule: List streams for class
+  steps:
+  - intent: list_streams
+  - action: action_list_streams
+
+- rule: Rename class
+  steps:
+  - intent: rename_class
+  - action: action_rename_class
+
+# ============================================
+# ACADEMIC MANAGEMENT RULES
+# ============================================
 
 - rule: Create academic year
   steps:
@@ -126,30 +167,6 @@ rules:
   - intent: get_current_term
   - action: action_get_current_term
 
-- rule: Respond to greeting
-  steps:
-  - intent: greet
-  - action: utter_greet
-
-- rule: Respond to affirmation
-  steps:
-  - intent: affirm
-  - action: utter_affirm
-
-- rule: Respond to denial
-  steps:
-  - intent: deny
-  - action: utter_deny
-
-- rule: Handle fallback
-  steps:
-  - intent: nlu_fallback
-  - action: utter_default
-
-# REMOVED: These are now handled by the form
-# - rule: Provide admission number
-# - rule: Auto generate admission number
-
 - rule: Deactivate academic year
   steps:
   - intent: deactivate_academic_year
@@ -159,11 +176,6 @@ rules:
   steps:
   - intent: activate_academic_year
   - action: action_activate_academic_year
-
-- rule: Promote students
-  steps:
-  - intent: promote_students
-  - action: action_promote_students
 
 - rule: Activate term
   steps:
@@ -175,10 +187,24 @@ rules:
   - intent: list_academic_terms
   - action: action_list_academic_terms
 
-- rule: Re-enroll student
+- rule: List academic years
   steps:
-  - intent: reenroll_student
-  - action: action_reenroll_student
+  - intent: list_academic_years
+  - action: action_list_academic_years
+
+- rule: Promote students
+  steps:
+  - intent: promote_students
+  - action: action_promote_students
+
+- rule: Complete term
+  steps:
+  - intent: complete_term
+  - action: action_complete_term
+
+# ============================================
+# FEE MANAGEMENT RULES
+# ============================================
 
 - rule: Create fee structure
   steps:
@@ -189,16 +215,6 @@ rules:
   steps:
   - intent: list_fee_structures
   - action: action_list_fee_structures
-
-- rule: Generate invoices
-  steps:
-  - intent: generate_invoices
-  - action: action_generate_invoices
-
-- rule: Get invoice
-  steps:
-  - intent: get_invoice
-  - action: action_get_invoice
 
 - rule: Add fee item
   steps:
@@ -225,25 +241,34 @@ rules:
   - intent: publish_fee_structure
   - action: action_publish_fee_structure
 
-- rule: Delete class
-  steps:
-  - intent: delete_class
-  - action: action_delete_class
-
 - rule: Handle affirm set default after publish
   steps:
-    - intent: affirm_set_default
-    - action: action_set_default_fee_structure
+  - intent: affirm_set_default
+  - action: action_set_default_fee_structure
 
 - rule: Handle deny set default after publish
   steps:
-    - intent: deny_set_default
-    - action: utter_acknowledged
+  - intent: deny_set_default
+  - action: utter_acknowledged
 
 - rule: Set structure as default
   steps:
-    - intent: set_structure_as_default
-    - action: action_set_structure_as_default
+  - intent: set_structure_as_default
+  - action: action_set_structure_as_default
+
+# ============================================
+# INVOICE MANAGEMENT RULES
+# ============================================
+
+- rule: Generate invoices
+  steps:
+  - intent: generate_invoices
+  - action: action_generate_invoices
+
+- rule: Get invoice
+  steps:
+  - intent: get_invoice
+  - action: action_get_invoice
 
 - rule: Issue invoices
   steps:
@@ -265,15 +290,49 @@ rules:
   - intent: list_unpaid_invoices
   - action: action_list_unpaid_invoices
 
+- rule: List students with balances
+  steps:
+  - intent: list_students_with_balances
+  - action: action_list_students_with_balances
+
 - rule: Cancel invoice
   steps:
   - intent: cancel_invoice
   - action: action_cancel_invoice
 
+# ============================================
+# PAYMENT MANAGEMENT RULES
+# ============================================
+
 - rule: Record payment
   steps:
   - intent: record_payment
   - action: action_record_payment
+
+- rule: Send payment notification on affirmative response
+  condition:
+  - slot_was_set:
+    - pending_payment_notification: "yes"
+  steps:
+  - or:
+    - intent: affirm
+    - intent: affirm_send_payment_notification
+  - action: action_send_payment_notification
+  - action: action_reset_slots
+
+- rule: Skip payment notification on negative response
+  condition:
+  - slot_was_set:
+    - pending_payment_notification: "yes"
+  steps:
+  - or:
+    - intent: deny
+    - intent: deny_send_payment_notification
+  - action: action_reset_slots
+
+# ============================================
+# GUARDIAN MANAGEMENT RULES
+# ============================================
 
 - rule: Add guardian
   steps:
@@ -290,11 +349,6 @@ rules:
   - intent: list_students_without_guardians
   - action: action_list_students_without_guardians
 
-- rule: Notify pending invoices
-  steps:
-  - intent: notify_pending_invoices
-  - action: action_notify_pending_invoices
-
 - rule: Set primary guardian
   steps:
   - intent: set_primary_guardian
@@ -305,41 +359,19 @@ rules:
   - intent: update_guardian
   - action: action_update_guardian
 
+# ============================================
+# NOTIFICATION RULES
+# ============================================
+
+- rule: Notify pending invoices
+  steps:
+  - intent: notify_pending_invoices
+  - action: action_notify_pending_invoices
+
 - rule: Send guardian message
   steps:
   - intent: send_guardian_message
   - action: action_send_guardian_message
-
-- rule: Get school information
-  steps:
-  - intent: get_school_info
-  - action: action_get_school_info
-
-- rule: Complete term
-  steps:
-  - intent: complete_term
-  - action: action_complete_term
-
-- rule: Send payment notification on affirmative response
-  condition:
-    - slot_was_set:
-      - pending_payment_notification: "yes"
-  steps:
-    - or:
-      - intent: affirm
-      - intent: affirm_send_payment_notification
-    - action: action_send_payment_notification
-
-- rule: Skip payment notification on negative response
-  condition:
-    - slot_was_set:
-      - pending_payment_notification: "yes"
-  steps:
-    - or:
-      - intent: deny
-      - intent: deny_send_payment_notification
-    - action: action_listen
-    - action: action_reset_slots
 
 - rule: Notify parents with balances
   steps:
@@ -351,16 +383,27 @@ rules:
   - intent: broadcast_message_to_all_parents
   - action: action_broadcast_message_to_all_parents
 
-- rule: List students with balances
+# ============================================
+# SCHOOL INFORMATION RULES
+# ============================================
+
+- rule: Get school information
   steps:
-  - intent: list_students_with_balances
-  - action: action_list_students_with_balances
+  - intent: get_school_info
+  - action: action_get_school_info
 
-forms:
-  student_creation_form:
-    required_slots:
-      - student_name
-      - admission_no
-      - class_name
+# ============================================
+# FORM CONTROL RULES
+# ============================================
 
-  
+- rule: Cancel form
+  steps:
+  - intent: cancel_form
+  - action: action_deactivate_loop
+  - action: utter_form_cancelled
+
+- rule: Restart form
+  steps:
+  - intent: restart_form
+  - action: action_restart_form
+  - action: utter_form_restarted

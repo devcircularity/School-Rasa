@@ -3,7 +3,7 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { User, CreditCard, Building2, Bell } from 'lucide-react'
+import { User, Shield, Building2, Bell, Smartphone } from 'lucide-react'
 
 const settingsNavItems = [
   {
@@ -14,12 +14,17 @@ const settingsNavItems = [
   {
     href: '/settings/account',
     label: 'Account',
-    icon: CreditCard
+    icon: Shield
+  },
+  {
+    href: '/settings/school',
+    label: 'School',
+    icon: Building2
   },
   {
     href: '/settings/devices&messaging',
     label: 'Devices & Messaging',
-    icon: Building2
+    icon: Smartphone
   },
   {
     href: '/settings/notifications',

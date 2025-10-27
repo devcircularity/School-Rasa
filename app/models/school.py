@@ -1,11 +1,24 @@
-# app/models/school.py - Updated with MobileDeviceStatus model
+# app/models/school.py - Add new fields to School model
+
 from __future__ import annotations
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, Integer, DateTime, Date, Boolean, ForeignKey, CheckConstraint, Text
+from sqlalchemy import String, Integer, DateTime, Date, Boolean, ForeignKey, CheckConstraint, Text, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
+import enum
+
+# Add enums for the new fields
+class BoardingType(str, enum.Enum):
+    DAY = "DAY"
+    BOARDING = "BOARDING"
+    BOTH = "BOTH"
+
+class GenderType(str, enum.Enum):
+    BOYS = "BOYS"
+    GIRLS = "GIRLS"
+    MIXED = "MIXED"
 
 class School(Base):
     __tablename__ = "schools"
@@ -20,6 +33,18 @@ class School(Base):
     phone: Mapped[str | None] = mapped_column(String(32))
     currency: Mapped[str] = mapped_column(String(8), default="KES")
     
+    # NEW FIELDS
+    boarding_type: Mapped[BoardingType] = mapped_column(
+        SQLEnum(BoardingType, native_enum=False),
+        default=BoardingType.DAY,
+        nullable=False
+    )
+    gender_type: Mapped[GenderType] = mapped_column(
+        SQLEnum(GenderType, native_enum=False),
+        default=GenderType.MIXED,
+        nullable=False
+    )
+    
     # Academic year start as proper Date field
     academic_year_start: Mapped[date] = mapped_column(Date, nullable=False)
     
@@ -30,7 +55,7 @@ class School(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
+    # Relationships (unchanged)
     members: Mapped[list["SchoolMember"]] = relationship("SchoolMember", back_populates="school")
     whatsapp_settings: Mapped["SchoolWhatsAppSettings | None"] = relationship(
         "SchoolWhatsAppSettings", 
@@ -41,7 +66,6 @@ class School(Base):
         "MobileDeviceStatus", 
         back_populates="school"
     )
-    # creator: Mapped["User"] = relationship("User", back_populates="created_schools")
 
 
 class SchoolMember(Base):

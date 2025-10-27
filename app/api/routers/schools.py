@@ -55,6 +55,8 @@ async def create_school(
         phone=school_data.phone,
         currency=school_data.currency,
         academic_year_start=school_data.academic_year_start,
+        boarding_type=school_data.boarding_type,  # NEW
+        gender_type=school_data.gender_type,      # NEW
         created_by=user.id
     )
     
@@ -399,6 +401,8 @@ async def update_school(
     school.phone = school_data.phone
     school.currency = school_data.currency
     school.academic_year_start = school_data.academic_year_start
+    school.boarding_type = school_data.boarding_type      # NEW
+    school.gender_type = school_data.gender_type 
     
     try:
         db.commit()

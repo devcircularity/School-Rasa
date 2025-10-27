@@ -1,6 +1,6 @@
 # app/schemas/class_schema.py
 import re
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -78,6 +78,7 @@ class ClassOut(BaseModel):
     academic_year: int
     stream: Optional[str]
     student_count: int
+    streams: List[str] = []  # NEW: List of stream names
     created_at: datetime
     
     class Config:
@@ -93,3 +94,27 @@ class ClassList(BaseModel):
     page: int
     limit: int
     has_next: bool
+
+# NEW: Stream-specific schemas
+class ClassStreamCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    
+    @validator('name')
+    def normalize_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Stream name cannot be empty')
+        # Normalize to title case: "red" -> "Red", "BLUE" -> "Blue"
+        return v.strip().title()
+
+class ClassStreamOut(BaseModel):
+    id: UUID
+    class_id: UUID
+    name: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ClassStreamList(BaseModel):
+    streams: List[ClassStreamOut]
+    total: int

@@ -1,4 +1,4 @@
-// components/chat/ChatWrapper.tsx - Fixed to prevent duplicate initial message sends
+// components/chat/ChatWrapper.tsx - Complete version with academic status refresh
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -20,6 +20,15 @@ interface ChatWrapperProps {
 }
 
 /**
+ * Helper function to dispatch academic status update event
+ * This triggers the AcademicStatusBar to refresh
+ */
+const dispatchAcademicStatusUpdate = () => {
+  console.log('ChatWrapper: Dispatching academic status update event')
+  window.dispatchEvent(new CustomEvent('academic-status-updated'))
+}
+
+/**
  * ChatWrapper provides a complete chat interface using the RESTful message flow.
  * It handles both regular text messages and file attachments seamlessly.
  */
@@ -38,18 +47,18 @@ export default function ChatWrapper({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // FIXED: Use ref to track if initial message was already processed
+  // Use ref to track if initial message was already processed
   const initialMessageProcessed = useRef(false)
 
   // Process initial message when component mounts
   useEffect(() => {
-    // FIXED: Check ref instead of state to prevent React strict mode double-firing
+    // Check ref instead of state to prevent React strict mode double-firing
     if (initialMessage && !initialMessageProcessed.current && !busy) {
       console.log('ChatWrapper: Processing initial message:', initialMessage)
       initialMessageProcessed.current = true
       handleSendMessage(initialMessage, initialContext)
     }
-  }, [initialMessage]) // FIXED: Minimal dependencies to prevent re-firing
+  }, [initialMessage])
 
   // Handle regular text messages using RESTful endpoints
   const handleSendMessage = useCallback(async (text: string, context?: any) => {
@@ -103,6 +112,10 @@ export default function ChatWrapper({
       if (response.conversation_id) {
         onConversationUpdated?.(response.conversation_id)
       }
+
+      // Trigger academic status refresh after successful message
+      // This ensures the status bar updates when users create/modify academic data
+      dispatchAcademicStatusUpdate()
 
     } catch (error: any) {
       console.error('ChatWrapper: Failed to send message:', error)
@@ -184,6 +197,9 @@ export default function ChatWrapper({
         onConversationUpdated?.(response.conversation_id)
       }
 
+      // Trigger academic status refresh after successful file message
+      dispatchAcademicStatusUpdate()
+
     } catch (error: any) {
       console.error('ChatWrapper: Failed to send message with files:', error)
       
@@ -245,6 +261,9 @@ export default function ChatWrapper({
             }
             
             console.log('ChatWrapper: Mutation successful')
+            
+            // Trigger academic status refresh after mutations
+            dispatchAcademicStatusUpdate()
           } catch (error) {
             console.error('ChatWrapper: Mutation failed:', error)
           }

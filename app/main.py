@@ -1,4 +1,4 @@
-# app/main.py - Updated with proper CORS configuration
+# app/main.py - Updated with AI router
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -9,11 +9,11 @@ import traceback
 from app.core.config import settings
 from app.core.db import get_engine
 from app.models.base import Base
-from app.api.routers import auth, schools, chat, students, classes, academic
-from app.api.routers import fees, invoices, payments
-from app.api.routers import guardians
-from app.api.routers import notifications
-from app.api.routers import enrollments
+from app.api.routers import (
+    auth, schools, chat, students, classes, academic,
+    fees, invoices, payments, guardians, notifications,
+    enrollments, rasa_content, users, class_streams
+)
 
 
 # Configure logging
@@ -60,8 +60,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],  # Added to expose all headers
-    max_age=3600,  # Cache preflight requests for 1 hour
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # Global exception handler
@@ -106,12 +106,22 @@ app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
 app.include_router(guardians.router, prefix="/api/guardians", tags=["Guardians"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(enrollments.router, prefix="/api/enrollments", tags=["Enrollments"])
+app.include_router(rasa_content.router, prefix="/api/rasa", tags=["Rasa Content"])
+app.include_router(users.router, prefix="/api/admin", tags=["User Management"])
+app.include_router(class_streams.router, prefix="/api", tags=["Class Streams"])
+
+
 
 # Root endpoint
 @app.get("/")
 async def root():
     return {
-        "message": "School Assistant API",
+        "message": "School Assistant API with AI",
         "version": "1.0.0",
-        "docs_url": "/docs" if settings.ENV == "dev" else "Documentation disabled in production"
+        "docs_url": "/docs" if settings.ENV == "dev" else "Documentation disabled in production",
+        "ai_endpoints": {
+            "chat": "/ai/chat",
+            "health": "/ai/health",
+            "help": "/ai/help"
+        }
     }

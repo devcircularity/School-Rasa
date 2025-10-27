@@ -46,11 +46,12 @@ async def get_current_academic_setup(db: Session, school_id: str) -> tuple:
         return None, None
     
     # First try to get ACTIVE term
+    # FIXED: Changed year_id to academic_year_id
     current_term = db.execute(
         select(AcademicTerm)
         .where(
             AcademicTerm.school_id == UUID(school_id),
-            AcademicTerm.year_id == current_year.id,
+            AcademicTerm.academic_year_id == current_year.id,  # FIXED
             AcademicTerm.state == "ACTIVE"
         )
         .order_by(AcademicTerm.term.desc())
@@ -62,7 +63,7 @@ async def get_current_academic_setup(db: Session, school_id: str) -> tuple:
             select(AcademicTerm)
             .where(
                 AcademicTerm.school_id == UUID(school_id),
-                AcademicTerm.year_id == current_year.id,
+                AcademicTerm.academic_year_id == current_year.id,  # FIXED
                 AcademicTerm.state == "PLANNED"
             )
             .order_by(AcademicTerm.term.desc())
@@ -164,7 +165,7 @@ async def create_student(
                 class_id=class_obj.id,
                 term_id=current_term.id,
                 status="ENROLLED",
-                joined_on=date.today()
+                enrolled_date=date.today()
             )
             db.add(enrollment)
         
@@ -350,31 +351,41 @@ async def get_student(
     ctx: Dict[str, Any] = Depends(require_school),
     db: Session = Depends(get_db)
 ):
-    """Get student details including current enrollment"""
+    """Get student details including current enrollment - accepts UUID or admission number"""
     school_id = ctx["school_id"]
     
+    # Try to parse as UUID first
     try:
         student_uuid = UUID(student_id)
+        # Search by UUID
+        result = db.execute(
+            select(Student, Class.name.label("class_name"))
+            .outerjoin(Class, Student.class_id == Class.id)
+            .where(
+                Student.id == student_uuid,
+                Student.school_id == UUID(school_id)
+            )
+        ).first()
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid student ID format"
-        )
-    
-    # Get student with class information
-    result = db.execute(
-        select(Student, Class.name.label("class_name"))
-        .outerjoin(Class, Student.class_id == Class.id)
-        .where(
-            Student.id == student_uuid,
-            Student.school_id == UUID(school_id)
-        )
-    ).first()
+        # Not a UUID, treat as admission number
+        # NORMALIZE: Strip # prefix from admission number
+        clean_admission_no = str(student_id).lstrip("#").strip()
+        
+        logger.info(f"Looking up student by admission number: {clean_admission_no}")
+        
+        result = db.execute(
+            select(Student, Class.name.label("class_name"))
+            .outerjoin(Class, Student.class_id == Class.id)
+            .where(
+                Student.admission_no == clean_admission_no,
+                Student.school_id == UUID(school_id)
+            )
+        ).first()
     
     if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
+            detail=f"Student '{student_id}' not found"
         )
     
     student, class_name = result
@@ -388,7 +399,7 @@ async def get_student(
             select(Enrollment, Class.name.label("enrolled_class_name"))
             .join(Class, Enrollment.class_id == Class.id)
             .where(
-                Enrollment.student_id == student_uuid,
+                Enrollment.student_id == student.id,  # Use student.id (UUID)
                 Enrollment.term_id == current_term.id,
                 Enrollment.status == "ENROLLED"
             )
@@ -517,7 +528,7 @@ async def enroll_student(
             # Reactivate existing enrollment
             existing_enrollment.status = "ENROLLED"
             existing_enrollment.class_id = class_uuid
-            existing_enrollment.joined_on = date.today()
+            existing_enrollment.enrolled_date = date.today()
     else:
         # Create new enrollment
         new_enrollment = Enrollment(
@@ -526,7 +537,7 @@ async def enroll_student(
             class_id=class_uuid,
             term_id=term_uuid,
             status="ENROLLED",
-            joined_on=date.today()
+            enrolled_date=date.today()
         )
         db.add(new_enrollment)
     
@@ -635,30 +646,36 @@ async def update_student(
     ctx: Dict[str, Any] = Depends(require_school),
     db: Session = Depends(get_db)
 ):
-    """Update student information and optionally update current enrollment"""
+    """Update student information - accepts UUID or admission number"""
     user = ctx["user"]
     school_id = ctx["school_id"]
     
+    # Try to parse as UUID first
     try:
         student_uuid = UUID(student_id)
+        student = db.execute(
+            select(Student).where(
+                Student.id == student_uuid,
+                Student.school_id == UUID(school_id)
+            )
+        ).scalar_one_or_none()
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid student ID format"
-        )
-    
-    student = db.execute(
-        select(Student).where(
-            Student.id == student_uuid,
-            Student.school_id == UUID(school_id)
-        )
-    ).scalar_one_or_none()
+        # Not a UUID, treat as admission number
+        clean_admission_no = str(student_id).lstrip("#").strip()
+        student = db.execute(
+            select(Student).where(
+                Student.admission_no == clean_admission_no,
+                Student.school_id == UUID(school_id)
+            )
+        ).scalar_one_or_none()
     
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
+            detail=f"Student '{student_id}' not found"
         )
+    
+    student_uuid = student.id
     
     # Check admission number uniqueness if being changed
     if (student_data.admission_no and 
@@ -752,29 +769,34 @@ async def delete_student(
     ctx: Dict[str, Any] = Depends(require_school),
     db: Session = Depends(get_db)
 ):
-    """Delete a student (soft delete by setting status to DELETED)"""
+    """Delete a student - accepts UUID or admission number"""
     user = ctx["user"]
     school_id = ctx["school_id"]
     
+    # Try to parse as UUID first
     try:
         student_uuid = UUID(student_id)
+        student = db.execute(
+            select(Student).where(
+                Student.id == student_uuid,
+                Student.school_id == UUID(school_id)
+            )
+        ).scalar_one_or_none()
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid student ID format"
-        )
-    
-    student = db.execute(
-        select(Student).where(
-            Student.id == student_uuid,
-            Student.school_id == UUID(school_id)
-        )
-    ).scalar_one_or_none()
+        # Not a UUID, treat as admission number
+        clean_admission_no = str(student_id).lstrip("#").strip()
+        student = db.execute(
+            select(Student).where(
+                Student.admission_no == clean_admission_no,
+                Student.school_id == UUID(school_id)
+            )
+        ).scalar_one_or_none()
+        student_uuid = student.id if student else None
     
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
+            detail=f"Student '{student_id}' not found"
         )
     
     # Soft delete by changing status

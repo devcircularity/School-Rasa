@@ -1,8 +1,20 @@
-# app/schemas/school.py - Fixed to handle date properly
+# app/schemas/school.py - Updated with boarding_type and gender_type
 from datetime import date
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+from enum import Enum
 import uuid
+
+# Add enums for validation
+class BoardingTypeEnum(str, Enum):
+    DAY = "DAY"
+    BOARDING = "BOARDING"
+    BOTH = "BOTH"
+
+class GenderTypeEnum(str, Enum):
+    BOYS = "BOYS"
+    GIRLS = "GIRLS"
+    MIXED = "MIXED"
 
 class SchoolCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="School name (required)")
@@ -13,8 +25,18 @@ class SchoolCreate(BaseModel):
     phone: Optional[str] = Field(None, max_length=32, description="School phone number")
     currency: Optional[str] = Field("KES", max_length=8, description="Default currency")
     
-    # FIXED: Accept date string and convert to proper date object
+    # Academic year start date
     academic_year_start: str = Field(..., description="Academic year start date (YYYY-MM-DD format)")
+    
+    # NEW FIELDS
+    boarding_type: BoardingTypeEnum = Field(
+        default=BoardingTypeEnum.DAY,
+        description="School type: DAY, BOARDING, or BOTH"
+    )
+    gender_type: GenderTypeEnum = Field(
+        default=GenderTypeEnum.MIXED,
+        description="Gender type: BOYS, GIRLS, or MIXED"
+    )
     
     @field_validator('academic_year_start')
     @classmethod
@@ -37,17 +59,34 @@ class SchoolOut(BaseModel):
     name: str
     address: Optional[str] = None
     contact: Optional[str] = None
+    short_code: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    currency: Optional[str] = None
+    academic_year_start: Optional[date] = None
+    
+    # NEW FIELDS
+    boarding_type: Optional[str] = None
+    gender_type: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
 
 class SchoolLite(BaseModel):
     id: uuid.UUID
     name: str
+    
+    class Config:
+        from_attributes = True
 
 class SchoolMineItem(BaseModel):
     id: uuid.UUID
     name: str
     role: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
 
-# app/schemas/school.py
 class SchoolOverview(BaseModel):
     school_name: str
     academic_year: int | None
@@ -62,3 +101,7 @@ class SchoolOverview(BaseModel):
     invoices_paid: int
     invoices_pending: int
     fees_collected: float
+    
+    # OPTIONAL: You could add these to overview too
+    # boarding_type: Optional[str] = None
+    # gender_type: Optional[str] = None

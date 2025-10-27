@@ -1,7 +1,7 @@
 # app/models/system_settings.py
 from sqlalchemy import Column, String, JSON, DateTime
 from sqlalchemy.sql import func
-from app.core.db import Base
+from app.models.base import Base
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"

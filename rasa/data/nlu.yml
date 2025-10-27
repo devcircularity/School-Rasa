@@ -2,6 +2,19 @@
 version: "3.1"
 
 nlu:
+# ============================================
+# SYNONYMS - Normalize vocabulary variations
+# ============================================
+- synonym: class
+  examples: |
+    - grade
+    - form
+    - stream
+    - level
+    - jss
+    - standard
+    - year
+
 - intent: greet
   examples: |
     - hey
@@ -20,14 +33,16 @@ nlu:
   examples: |
     - bye
     - goodbye
-    - see you later
-    - bye bye
-    - good night
-    - have a nice day
-    - see you around
-    - farewell
-    - catch you later
-    - until next time
+    - cancel
+    - quit
+    - exit
+    - never mind
+    - forget it
+    - cancel this
+    - stop this
+    - I want to exit
+    - get me out
+    - cancel student creation
 
 - intent: affirm
   examples: |
@@ -80,118 +95,176 @@ nlu:
 
 - intent: create_student
   examples: |
-    # Original formal patterns
+    # CRITICAL: Bare commands without any entities
+    - create student
+    - add student
+    - new student
+    - create a student
+    - add a student
+    - register student
+    - enroll student
+    - I want to create a student
+    - I need to add a student
+    
+    # CRITICAL: Comma-separated pattern (name, admission, class)
+    - [Joan Nyambu](student_name), [234](admission_no), class [1 Baba](class_name)
+    - [Mary Wanjiru](student_name), [123](admission_no), [Grade 5](class_name)
+    - [Peter Mwangi](student_name), [456](admission_no), class [8A](class_name)
+    - [Sarah Akinyi](student_name), [789](admission_no), [Form 2](class_name)
+    - [James Otieno](student_name), [321](admission_no), class [7 Blue](class_name)
+    - [Grace Mutua](student_name), [654](admission_no), [6 Red](class_name)
+    - [David Kimani](student_name), [987](admission_no), class [5 White](class_name)
+    - [Faith Njeri](student_name), [111](admission_no), [9 Green](class_name)
+    - [Eric Maina](student_name), [222](admission_no), class [4 East](class_name)
+    - [Lucy Chebet](student_name), [333](admission_no), [8 North](class_name)
+    - [Moses Kiprop](student_name), [444](admission_no), class [3 A](class_name)
+    - [Ann Muthoni](student_name), [555](admission_no), [Form 1 B](class_name)
+    - [Paul Macharia](student_name), [666](admission_no), class [JSS 2](class_name)
+    - [Jane Wairimu](student_name), [777](admission_no), [PP1](class_name)
+    - [Kevin Omondi](student_name), [888](admission_no), class [Grade 7 Marvel](class_name)
+    
+    # Natural patterns with class having stream names
+    - add student [John Doe](student_name) to class [8 Baba](class_name)
+    - create student [Mary Jane](student_name) for [7 Mama](class_name)
+    - new student [Peter Kim](student_name) in [6 Alpha](class_name)
+    - student [Sarah Lee](student_name) class [5 Beta](class_name)
+    - add [James Bond](student_name) to [9 Phoenix](class_name)
+    - create [Alice Wonder](student_name) in [4 Eagle](class_name)
+    - register [Bob Smith](student_name) for [8 Lion](class_name)
+    
+    # With admission numbers and stream-like class names
+    - add [1234](admission_no) [John Smith](student_name) to [Grade 6 Red](class_name)
+    - create [5678](admission_no) [Mary Johnson](student_name) for [8 Blue](class_name)
+    - new student [9999](admission_no) [Peter Brown](student_name) in [Form 2 A](class_name)
+    - student [1111](admission_no) [Sarah Davis](student_name) class [7 White](class_name)
+    - add student [2222](admission_no) [James Wilson](student_name) to [JSS 1 Green](class_name)
+    
+    # Original patterns (keep these too)
     - add student [12345](admission_no) named [John Doe](student_name) to class [8A](class_name)
     - create student [54321](admission_no) [Mary Jane](student_name) in class [7B](class_name)
     - enroll [11111](admission_no) [Jane Smith](student_name) to [Class 6C](class_name)
     - register student [22222](admission_no) [David Kim](student_name) in [5B](class_name)
     - add [33333](admission_no) [Lucy Wanjiku](student_name) to [4A](class_name)
-    - put student [44444](admission_no) [James Kariuki](student_name) in class [9C](class_name)
-    - insert new student [55555](admission_no) [Peter Mwangi](student_name) for [7C](class_name)
-    - record [66666](admission_no) [Amina Yusuf](student_name) in [3B](class_name)
-    - enroll student [77777](admission_no) called [Brian Otieno](student_name) into [6A](class_name)
-    - add admission [88888](admission_no) [Susan Chebet](student_name) to [2A](class_name)
-    - create new student [99999](admission_no) [Michael Johnson](student_name) for [JSS 1A](class_name)
-    - register [12121](admission_no) [Grace Mutua](student_name) in [Grade 3](class_name)
-    - add student with admission number [13131](admission_no) [Daniel Ochieng](student_name) to [Form 2B](class_name)
-    - enroll [14141](admission_no) [Faith Wanjiru](student_name) into class [PP1](class_name)
-    - student [15151](admission_no) [Kevin Maina](student_name) should join [PP2](class_name)
-    - I want to add student [16161](admission_no) [Sarah Akinyi](student_name) to [Nursery](class_name)
-    - please add [17171](admission_no) [Timothy Kiprotich](student_name) in [Form 1A](class_name)
-    - new student [18181](admission_no) [Esther Njeri](student_name) for [Form 3](class_name)
-    - add student [5555](admission_no) named [Eric Mwirichia](student_name) to class [8A](class_name)
-    - create student [1234](admission_no) [Alice Wonder](student_name) for class [Grade 1](class_name)
-    - register [9999](admission_no) [Bob Smith](student_name) in [7A](class_name)
-    - enroll student [7777](admission_no) [Carol Johnson](student_name) to [Form 4](class_name)
-    
-    # Natural simple patterns - NO class specified (system should prompt for it)
-    - create a student [John Mwangi](student_name)
-    - add student [Mary Wanjiku](student_name)
-    - new student [Peter Kariuki](student_name)
-    - create student [Sarah Akinyi](student_name)
-    - add [James Otieno](student_name)
-    - register student [Grace Mutua](student_name)
-    - create [Daniel Kiprotich](student_name)
-    - add new student [Faith Njeri](student_name)
-    - student [Eric Maina](student_name)
-    - new student called [Lucy Chebet](student_name)
-    - create student named [Moses Kiprop](student_name)
-    - add a new student [Rebecca Wambui](student_name)
-    - register [Ann Muthoni](student_name)
-    - new student [Paul Macharia](student_name)
-    - create [Jane Wairimu](student_name)
     
     # Simple patterns WITH class
     - add student [John Doe](student_name) to [Grade 4](class_name)
     - create student [Mary Jane](student_name) for [8A](class_name)
     - new student [Peter Kim](student_name) in [Form 1](class_name)
     - student [Sarah Lee](student_name) class [7B](class_name)
-    - add [James Bond](student_name) to [JSS 2](class_name)
-    - create [Alice Wonder](student_name) in [PP1](class_name)
-    - register [Bob Smith](student_name) for [Grade 5](class_name)
-    - enroll [Carol Johnson](student_name) in [Form 3A](class_name)
-    - student [Michael Brown](student_name) to [Grade 6](class_name)
-    - add [Susan Davis](student_name) in [Form 2](class_name)
     
     # With admission numbers but natural language
     - add [1234](admission_no) [John Smith](student_name) to [Grade 6](class_name)
     - create [5678](admission_no) [Mary Johnson](student_name) for [8B](class_name)
     - new student [9999](admission_no) [Peter Brown](student_name) in [Form 2](class_name)
-    - student [1111](admission_no) [Sarah Davis](student_name) class [7A](class_name)
-    - add student [2222](admission_no) [James Wilson](student_name) to [JSS 1](class_name)
-    - create [3333](admission_no) [Alice Miller](student_name) for [PP2](class_name)
     
-    # Mixed patterns
-    - create student [John](student_name) admission [12345](admission_no) class [Grade 4](class_name)
-    - add [Mary](student_name) with number [54321](admission_no) to [Form 1](class_name)
-    - new student [Peter](student_name) ID [99999](admission_no) for [8A](class_name)
-    - student [Sarah](student_name) admission [77777](admission_no) in [Grade 3](class_name)
-
+    # WITH # PREFIX
     - add student [John Doe](student_name) [#123](admission_no) to [Grade 4](class_name)
     - create student [Mary Jane](student_name) [#456](admission_no) for [8A](class_name)
     - add student [Peter Kim](student_name) [#789](admission_no) in [Form 1](class_name)
     - new student [Sarah Lee](student_name) [#999](admission_no) to [Grade 5](class_name)
-    - create student [James Bond](student_name) [#111](admission_no) for [JSS 2](class_name)
-    - add [Alice Wonder](student_name) [#222](admission_no) to [PP1](class_name)
-    - student [Bob Smith](student_name) [#333](admission_no) class [Grade 6](class_name)
-    - create [Carol Johnson](student_name) [#444](admission_no) in [Form 3A](class_name)
-    - add student [Michael Brown](student_name) [#555](admission_no) to [Grade 7](class_name)
-    - new student [Susan Davis](student_name) [#666](admission_no) for [Form 2](class_name)
-    - add student [David Wilson](student_name) [#777](admission_no) in [8B](class_name)
-    - create student [Emma Taylor](student_name) [#888](admission_no) to [Grade 3](class_name)
-    - add [Oliver Brown](student_name) [#1234](admission_no) for [Form 4](class_name)
-    - student [Sophia Martin](student_name) [#5678](admission_no) in [JSS 1](class_name)
-    - create [Lucas Garcia](student_name) [#9999](admission_no) to [Grade 2](class_name)
-    
-    # WITH EXPLICIT "admission" KEYWORD
-    - add student [John Doe](student_name) admission [#123](admission_no) to [Grade 4](class_name)
-    - create student [Mary Jane](student_name) admission number [#456](admission_no) for [8A](class_name)
-    - add student [Peter Kim](student_name) admission [#789](admission_no) in [Form 1](class_name)
+
 
 # New follow-up intent for when class is provided separately
 - intent: assign_student_to_class
   examples: |
+    # CRITICAL: These are for SELECTING existing classes during student creation
+    # NOT for creating new classes
+    
+    # --- MOST COMMON: Direct class name responses (when asked "which class?") ---
+    - [1 A](class_name)
+    - [2 Red](class_name)
+    - [6 White](class_name)
+    - [8 White](class_name)
+    - [9 Yellow](class_name)
+    - [1 Baba](class_name)
+    - [2 Green](class_name)
+    - [2 Indigo](class_name)
+    - [2 Maroon](class_name)
+    - [1 Silk](class_name)
+    
+    # --- "class X" format (very common user response) ---
+    - class [1 A](class_name)
+    - class [2 Red](class_name)
+    - class [6 White](class_name)
+    - class [8 White](class_name)
+    - class [9 Yellow](class_name)
+    - class [1 Baba](class_name)
+    - class [2 Green](class_name)
+    - class [8 Red](class_name)
+    - class [5](class_name)
+    - class [1](class_name)
+    - class [2](class_name)
+    - class [6](class_name)
+    - class [8](class_name)
+    - class [9](class_name)
+    
+    # --- "add STUDENT to class X" patterns (student assignment, NOT class creation) ---
+    - add the student to class [6](class_name)
+    - add the student to class [6 White](class_name)
+    - add the student to class [1 A](class_name)
+    - add the student to class [2 Red](class_name)
+    - add the student to [Grade 4](class_name)
+    - add student to class [8A](class_name)
+    - put the student in class [6 White](class_name)
+    - put the student in class [1 A](class_name)
+    - put the student in class [2 Red](class_name)
+    - assign the student to [Form 1](class_name)
+    - enroll the student in [6 White](class_name)
+    - enroll the student in [1 A](class_name)
+    - put student in [Grade 5](class_name)
+    - assign student to [8 Red](class_name)
+    - add them to class [6](class_name)
+    - add them to class [1 A](class_name)
+    - put them in [6 White](class_name)
+    - put them in [2 Red](class_name)
+    - add her to class [6 White](class_name)
+    - add her to class [1 A](class_name)
+    - add him to class [8A](class_name)
+    - put her in [Grade 4](class_name)
+    - assign to [Grade 4](class_name)
+    - enroll in [8 White](class_name)
+    - enroll in [1 A](class_name)
+    
+    # --- Simple class names (when in form context) ---
     - [Grade 4](class_name)
     - [8A](class_name)
     - [Form 1](class_name)
     - [PP1](class_name)
     - [JSS 2](class_name)
+    - [6 White](class_name)
+    - [8 Red](class_name)
+    - [1 Baba](class_name)
+    - [2 Green](class_name)
     - [Nursery](class_name)
-    - class [Grade 5](class_name)
-    - put them in [7B](class_name)
-    - assign to [Form 3](class_name)
+    
+    # --- With "class" keyword ---
+    - class [Grade 4](class_name)
+    - class [6 White](class_name)
+    - class [8A](class_name)
+    - in class [Form 1](class_name)
+    - to class [6 White](class_name)
+    - to class [1 A](class_name)
+    
+    # --- With "please" ---
+    - [Grade 4](class_name) please
+    - class [6 White](class_name) please
+    - [8 Red](class_name) please
+    - [6 White](class_name) please
+    - [1 A](class_name) please
+    - [2 Red](class_name) please
+    
+    # --- Existing patterns ---
+    - [Grade 2](class_name)
+    - [Form 4](class_name)
+    - [PP2](class_name)
+    - to [Grade 7](class_name)
+    - in [Form 2A](class_name)
     - [John](student_name) to [Grade 4](class_name)
     - [Mary](student_name) in [8A](class_name)
     - put [Peter](student_name) in [Form 1](class_name)
     - [Sarah](student_name) should go to [PP1](class_name)
     - assign [James](student_name) to [JSS 2](class_name)
-    - [Grade 2](class_name)
-    - [Form 4](class_name)
-    - [PP2](class_name)
-    - [JSS 1](class_name)
     - [Standard 6](class_name)
-    - to [Grade 7](class_name)
-    - in [Form 2A](class_name)
 
 - intent: list_students
   examples: |
@@ -218,64 +291,57 @@ nlu:
 
 - intent: list_students_by_class
   examples: |
+    # --- Core patterns (generic) ---
+    - list students in [Class 8](class_name)
     - list students in [Grade 4](class_name)
-    - show students in class [8A](class_name)
-    - who is in [Form 1](class_name)
-    - students in [JSS 2](class_name)
-    - show me [Grade 3](class_name) students
-    - list [PP1](class_name) students
-    - students from [7B](class_name)
+    - list students in [Form 1](class_name)
+    - list students in [JSS 2](class_name)
+    - list students in [Standard 6](class_name)
+    - show students in [Class 5](class_name)
+    - show students in [Grade 3](class_name)
+    - show students in [Form 2](class_name)
+    - who is in [Class 7](class_name)
+    - who is in [Grade 8](class_name)
+    - who is in [Form 3](class_name)
+    - get students in [PP1](class_name)
     - show [Nursery](class_name) class students
-    - who is enrolled in [Grade 5](class_name)
-    - [Form 2A](class_name) student list
-    - display [JSS 1](class_name) students
-    - get students in [Grade 1](class_name)
-    - show me students from [6A](class_name)
-    - list all students in [Form 3](class_name)
-    - students in [PP2](class_name) class
-    - who are the [Grade 2](class_name) students
-    - show [Standard 4](class_name) students
-    - [Baby Class](class_name) student roster
-    - students enrolled in [Grade 6](class_name)
-    - list [Form 4](class_name) class students
-    - show me [JSS 3](class_name) class
+    - list [Baby Class](class_name) students
     - students in [Kindergarten](class_name)
-    - [Grade 7](class_name) student list
-    - who is in [Form 1A](class_name) class
-    - show students from [Grade 8](class_name)
-    - list [9A](class_name) students
-    - students of [Grade 4](class_name) class
-    - show me class [8B](class_name) students
-    - [Grade 5A](class_name) roster
-    - students in [Primary 3](class_name)
-    - show [grade 4](class_name) details
-    - show class [grade 4](class_name) details
-    - show [grade 5](class_name) details
-    - display [Grade 3](class_name) details
-    - show me [Grade 6](class_name)
-    - [grade 2](class_name) details
-    - show [form 1](class_name) details
-    - [jss 2](class_name) details
-    - show class [8a](class_name) details
-    - [pp1](class_name) details
+
+    # --- Compact names (combined level + stream) ---
+    - list students in [8A](class_name)
+    - list students in [8 Blue](class_name)
+    - show [7 Red](class_name) students
+    - students in [6A](class_name)
+    - list [Form 2A](class_name) students
+    - show me [JSS 3B](class_name) students
+    - list [Grade 4 Green](class_name) students
+    - show [PP2 A](class_name) students
+
+    # --- Natural phrasing (Kenyan school context) ---
+    - who are the students in [Grade 2](class_name)
+    - show me all students from [Grade 5](class_name)
+    - list all students under [Form 4](class_name)
+    - show me class [Grade 4](class_name) details
+    - show details for [Form 1A](class_name)
+    - display [Grade 6](class_name) student list
+    - show me [Standard 4](class_name) class info
+    - list students from [Primary 3](class_name)
+    - show details of [JSS 1](class_name)
+    - class [Grade 5](class_name) details
+
+    # --- Lowercase + alternative phrasing (to help generalization) ---
+    - show students in class [8a](class_name)
+    - show students in grade [4](class_name)
+    - show students in form [1](class_name)
+    - students in [pp1](class_name)
     - show me [nursery](class_name) details
-    - [standard 4](class_name) class details
-    - show [baby class](class_name) details
-    - [kindergarten](class_name) details
-    - show me details for [grade 4](class_name)
-    - details of [form 2](class_name)
-    - [grade 7](class_name) class info
-    - show info for [jss 1](class_name)
-    - [pp2](class_name) class details
-    - grade [4](class_name) details
-    - class [grade 4](class_name) students
-    - show [4](class_name) details
-    - [8a](class_name) class details
-    - show me [form 1a](class_name)
-    - details for [grade 6](class_name)
-    - [jss 3](class_name) info
-    - show class [nursery](class_name)
-    - [primary 5](class_name) details
+    - [grade 7](class_name) student list
+    - [form 2](class_name) details
+    - [class 5](class_name) details
+    - [jss 3](class_name) class info
+    - [primary 4](class_name) students
+
 
 - intent: show_unassigned_students
   examples: |
@@ -405,36 +471,292 @@ nlu:
     - find [56789](student_query)
 
 
+
 - intent: create_class
   examples: |
+    # ==========================================
+    # IMPORTANT: Only patterns for creating NEW classes
+    # MUST have "create/new/make/setup/establish" keyword
+    # ==========================================
+    
+    # ==========================================
+    # BASIC CLASS CREATION - ALL VARIATIONS (no streams)
+    # ==========================================
+    - create class [8](level)
+    - create class [7](level)
+    - create class [5](level)
+    - create grade [8](level)
+    - create grade [6](level)
+    - create grade [5](level)
+    - create form [2](level)
+    - create form [1](level)
+    - create jss [1](level)
+    - create jss [2](level)
+    - create standard [6](level)
+    - new class [8](level)
+    - new grade [7](level)
+    - new form [2](level)
+    - make class [8](level)
+    - make grade [5](level)
+    - make form [1](level)
+    - create a class [8](level)
+    - create a grade [6](level)
+    - create new class [8](level)
+    - create new grade [7](level)
+    - I want to create class [9](level)
+    - I want to create grade [5](level)
+    - I want to create form [3](level)
+    - please create class [5](level)
+    - please create grade [8](level)
+    - can you create class [7](level)
+    - can you create grade [6](level)
+    - set up class [PP1](level)
+    - set up grade [4](level)
+    - set up [PP1](level) class
+    - establish [Nursery](level) class
+    - establish grade [7](level) class
+    - make a new class [4](level)
+    - make a new grade [6](level)
+    - add class [8](level)
+    - add grade [5](level)
+    - add form [2](level)
+    
+    # ==========================================
+    # WITH "GRADE" OR FORM LABELS IN ENTITY
+    # ==========================================
+    - create class [grade 8](level)
+    - create class [grade 7](level)
+    - create class [grade 5](level)
+    - new class [grade 8](level)
+    - new class [grade 6](level)
+    - make class [Form 1](level)
+    - make class [Form 2](level)
+    - make class [Form 3](level)
+    - create class [Form 2](level)
+    - create class [JSS 1](level)
+    - create class [JSS 2](level)
+    - create class [Standard 6](level)
+    - create class [Standard 5](level)
+    - set up [Kindergarten](level) for 2025
+    - create [grade 6](level) class
+    - create [grade 5](level) class
+    - create [form 1](level) class
+    - create a [grade 5](level) class
+    - create a [form 2](level) class
+    - I want to create [Form 3](level) class
+    - I want to create [grade 8](level) class
+    - I want to create [jss 1](level) class
+    
+    # ==========================================
+    # SINGLE STREAM - ALL VARIATIONS
+    # ==========================================
+    - create class [8](level) [Blue](stream)
+    - create class [8](level) [Red](stream)
+    - create class [7](level) [Green](stream)
+    - create grade [8](level) [Blue](stream)
+    - create grade [7](level) [Red](stream)
+    - create grade [6](level) [Yellow](stream)
+    - create form [2](level) [Alpha](stream)
+    - create form [1](level) [A](stream)
+    - create jss [1](level) [North](stream)
+    - new class [6](level) [Yellow](stream)
+    - new grade [5](level) [Green](stream)
+    - new form [2](level) [B](stream)
+    - make class [5](level) [Gold](stream)
+    - make grade [8](level) [Purple](stream)
+    - create class [grade 8](level) [Blue](stream)
+    - create class [grade 6](level) [Red](stream)
+    - create class [form 1](level) [Alpha](stream)
+    - create class [6](level) [Purple](stream)
+    - new class [5](level) [Pink](stream)
+    - create class [7](level) [Silver](stream)
+    - I want to create class [8](level) [Blue](stream)
+    - I want to create grade [6](level) [Red](stream)
+    
+    # ==========================================
+    # SINGLE STREAM - UNCOMMON COLORS
+    # ==========================================
+    - create class [6](level) [Maroon](stream)
+    - create class [8](level) [Turquoise](stream)
+    - create grade [6](level) [Maroon](stream)
+    - create grade [7](level) [Indigo](stream)
+    - new class [5](level) [Indigo](stream)
+    - create class [6](level) [Scarlet](stream)
+    - create class [grade 6](level) [Maroon](stream)
+    - create class [grade 8](level) [Magenta](stream)
+    - create form [1](level) [Crimson](stream)
+    - new grade [8](level) [Turquoise](stream)
+    
+    # ==========================================
+    # SINGLE STREAM - NAMES/WORDS
+    # ==========================================
+    - create class [6](level) [Marvel](stream)
+    - create class [8](level) [Eagle](stream)
+    - create grade [7](level) [Lion](stream)
+    - create grade [6](level) [Falcon](stream)
+    - new class [5](level) [Lion](stream)
+    - create class [6](level) [Falcon](stream)
+    - create class [8](level) [Cheetah](stream)
+    - new class [5](level) [Leopard](stream)
+    - new grade [6](level) [Phoenix](stream)
+    - create class [grade 6](level) [Marvel](stream)
+    - create class [grade 8](level) [Excellence](stream)
+    - create class [7](level) [Mama](stream)
+    - create grade [8](level) [Baba](stream)
+    - new class [6](level) [Alpha](stream)
+    - new grade [5](level) [Victory](stream)
+    
+    # ==========================================
+    # SINGLE STREAM - DIRECTIONS
+    # ==========================================
+    - set up class [8](level) [North](stream)
+    - create class [7](level) [East](stream)
+    - create grade [8](level) [South](stream)
+    - new class [6](level) [West](stream)
+    - new grade [7](level) [North](stream)
+    - create form [2](level) [East](stream)
+    
+    # ==========================================
+    # SINGLE STREAM - GREEK LETTERS
+    # ==========================================
+    - create class [8](level) [Beta](stream)
+    - create class [6](level) [Delta](stream)
+    - create grade [7](level) [Alpha](stream)
+    - new class [5](level) [Omega](stream)
+    - new grade [6](level) [Gamma](stream)
+    - create form [1](level) [Beta](stream)
+    
+    # ==========================================
+    # SINGLE STREAM - LETTERS (A-Z)
+    # ==========================================
+    - create class [Form 1](level) [A](stream)
+    - create class [Form 2](level) [B](stream)
+    - establish class [JSS 3](level) [C](stream)
+    - create class [8](level) [A](stream)
+    - create grade [8](level) [A](stream)
+    - create grade [7](level) [B](stream)
+    - new class [6](level) [C](stream)
+    - new grade [5](level) [D](stream)
+    - create class [grade 5](level) [D](stream)
+    - create class [8](level) [X](stream)
+    - create grade [7](level) [Y](stream)
+    - new class [6](level) [Z](stream)
+    
+    # ==========================================
+    # MULTIPLE STREAMS - ALL VARIATIONS
+    # ==========================================
+    - create class [8](level) with streams [Blue](stream) and [Red](stream)
+    - create class [5](level) with streams [Red](stream), [Blue](stream) and [Green](stream)
+    - create grade [8](level) with streams [Blue](stream) and [Red](stream)
+    - create grade [7](level) with streams [Yellow](stream), [Green](stream) and [Purple](stream)
+    - create form [1](level) with streams [A](stream) and [B](stream)
+    - create form [2](level) with streams [Alpha](stream), [Beta](stream) and [Gamma](stream)
+    - new class [7](level) with streams [Yellow](stream) and [Purple](stream)
+    - new grade [6](level) with streams [Red](stream) and [Blue](stream)
+    - create class [6](level) with streams [White](stream), [Black](stream) and [Gray](stream)
+    - make class [9](level) with streams [North](stream) and [South](stream)
+    - make grade [8](level) with streams [East](stream) and [West](stream)
+    - create class [grade 8](level) with streams [Red](stream) and [Blue](stream)
+    - new class [Form 1](level) with streams [A](stream) and [B](stream)
+    - create class [4](level) with streams [East](stream), [West](stream) and [North](stream)
+    - create grade [5](level) with streams [Lion](stream), [Eagle](stream) and [Falcon](stream)
+    - create class [PP1](level) with streams [Red](stream) and [Green](stream)
+    - make class [JSS 2](level) with streams [Alpha](stream) and [Beta](stream)
+    
+    # ==========================================
+    # MULTIPLE STREAMS - COMMA-SEPARATED
+    # ==========================================
+    - create class [8](level) with streams [Blue](stream), [Red](stream), [Green](stream)
+    - create grade [7](level) with streams [Yellow](stream), [Purple](stream), [Pink](stream)
+    - new class [7](level) with streams [Yellow](stream), [Purple](stream), [Pink](stream)
+    - new grade [6](level) with streams [Maroon](stream), [Turquoise](stream), [Indigo](stream)
+    - create class [6](level) with streams [Maroon](stream), [Turquoise](stream), [Indigo](stream)
+    - make class [5](level) with streams [Eagle](stream), [Lion](stream), [Falcon](stream)
+    - make grade [8](level) with streams [Red](stream), [Blue](stream), [Green](stream)
+    - create form [1](level) with streams [A](stream), [B](stream), [C](stream)
+    
+    # ==========================================
+    # WITH ACADEMIC YEAR
+    # ==========================================
     - create class [Grade 4](level) [A](stream) for [2025](academic_year)
-    - add new class [JSS 1](level) [B](stream) for [2025](academic_year)
+    - create grade [8](level) [Blue](stream) for [2025](academic_year)
     - make class [Form 2](level) [C](stream) [2024](academic_year)
-    - set up [PP1](level) class for year [2025](academic_year)
-    - create [Nursery](level) class
-    - add [Grade 1](level) [A](stream) for academic year [2025](academic_year)
-    - new class [JSS 3](level) [B](stream) [2024](academic_year)
-    - establish [Form 1](level) [A](stream) for [2025](academic_year)
-    - create new class [Grade 5](level) for [2025](academic_year)
-    - add class [PP2](level) [B](stream)
-    - make new [Grade 2](level) [A](stream) class for [2025](academic_year)
-    - set up class [JSS 2](level) [C](stream) for academic year [2024](academic_year)
-    - I want to create [Form 4](level) [A](stream) for [2025](academic_year)
-    - please add [Grade 3](level) [B](stream) class for [2024](academic_year)
-    - establish [Kindergarten](level) class for [2025](academic_year)
-    - new [Form 3](level) [B](stream) for year [2025](academic_year)
+    - make grade [7](level) [Red](stream) [2025](academic_year)
+    - set up class [PP1](level) [Red](stream) for year [2025](academic_year)
+    - create class [Nursery](level) [A](stream) for [2025](academic_year)
+    - new class [Form 3](level) [B](stream) for year [2025](academic_year)
+    - new grade [6](level) [Yellow](stream) for year [2025](academic_year)
     - create class called [Standard 6](level) [A](stream) for [2025](academic_year)
-    - add [Baby Class](level) for [2025](academic_year)
+    - establish class [Form 1](level) [Blue](stream) for [2025](academic_year)
+    - create class [grade 6](level) [Marvel](stream) for [2025](academic_year)
+    - create grade [8](level) for [2025](academic_year)
+    - create form [2](level) for [2025](academic_year)
+
+    # ==========================================
+    # COMPACT NAMES (NAME ENTITY)
+    # ==========================================
     - create class [8A](name)
-    - new class [8A](name)
-    - add class [Grade 8](name)
-    - make class [Form 1](name)
-    - create a new class [7B](name)
-    - set up class [PP1](name)
-    - establish class [JSS 2](name)
-    - I want to create class [9A](name)
-    - please create class [Grade 4](name)
-    - add new class [Form 3A](name)
+    - create class [Grade 8A](name)
+    - new class [9A](name)
+    - create class [Form 1A](name)
+    - make new class [7B](name)
+    - set up class [PP1A](name)
+    - create class [Grade 8 Blue](name)
+    - I want to create class [9 White](name)
+    - create class [6 Marvel](name)
+    - new class [8 Phoenix](name)
+    - create class [Form 2 Alpha](name)
+    - new class [JSS 1 North](name)
+
+# NEW: Separate intent for adding classes (without "create/new/make")
+- intent: add_class
+  examples: |
+    # ONLY "add class X" patterns (for creating new classes)
+    # NOT "add student to class X" which is assign_student_to_class
+    - add class [8](level)
+    - add class [7](level)
+    - add a class [7](level)
+    - add class [grade 5](level)
+    - add class [JSS 1](level)
+    - please add class [6](level)
+    - can you add class [8](level)
+    - add [Baby Class](level) class
+    - add [grade 6](level) class
+    - add class [8](level) [White](stream)
+    - add class [7](level) [Red](stream)
+    - add class [9](level) [Orange](stream)
+    - please add class [7](level) [Red](stream)
+    - add class [7](level) [Violet](stream)
+    - add class [9](level) [Crimson](stream)
+    - add class [8](level) [Amber](stream)
+    - add class [grade 7](level) [Cyan](stream)
+    - add class [7](level) [Phoenix](stream)
+    - add class [9](level) [Tiger](stream)
+    - add class [7](level) [Hawk](stream)
+    - add class [6](level) [Panther](stream)
+    - add class [grade 7](level) [Victory](stream)
+    - add class [8](level) [Baba](stream)
+    - add class [8](level) [Alpha](stream)
+    - add class [7](level) [Gamma](stream)
+    - add class [Form 2](level) [B](stream)
+    - add class [7](level) [B](stream)
+    - add new class [JSS 1](level) [B](stream) for [2025](academic_year)
+    - add class [Grade 1](level) [A](stream) for academic year [2025](academic_year)
+    - add class [grade 7](level) [Maroon](stream) for [2025](academic_year)
+    - add class [8B](name)
+    - add class [JSS 2A](name)
+    - add class [Standard 7A](name)
+    - add class [7 Maroon](name)
+
+- intent: rename_class
+  examples: |
+    - rename class [5](class_name) to [55](name)
+    - rename class [8A](class_name) to [8 Red](name)
+    - change class [Grade 4](class_name) to [Grade 5](name)
+    - update class [7](class_name) name to [7 Blue](name)
+    - rename [Form 1](class_name) to [Form 1A](name)
+    - change [6](class_name) to [6 Alpha](name)
+    - update [8A](class_name) to [8 Red](name)
 
 - intent: list_classes
   examples: |
@@ -514,6 +836,14 @@ nlu:
     - set up year [2025](academic_year)
     - I want to create academic year [2025](academic_year)
     - please create academic year [2024](academic_year)
+    - start a new academic year [2025](academic_year)
+    - begin academic year [2026](academic_year)
+    - open academic year [2025](academic_year)
+    - initialize year [2024](academic_year)
+    - can you create academic year [2025](academic_year)
+    - let's add academic year [2026](academic_year)
+    - create another academic year [2027](academic_year)
+    - add academic year for [2025](academic_year)
 
 - intent: create_academic_term
   examples: |
@@ -605,22 +935,31 @@ nlu:
 
 - intent: provide_admission_number
   examples: |
+    # Numeric admission numbers
     - admission number [12345](admission_no)
     - [54321](admission_no)
     - [#123](admission_no)
     - [#456](admission_no)
-    - [#789](admission_no)
     - [#999](admission_no)
-    - [#5555](admission_no)
-    - [#7777](admission_no)
     - admission [#123](admission_no)
     - the admission number is [#98765](admission_no)
-    - use admission [#11111](admission_no)
     - student number [#33333](admission_no)
     - ID number [#44444](admission_no)
-    - [#12345](admission_no) as admission
+    - use admission [#11111](admission_no)
     - make it [#67890](admission_no)
-    - set admission to [#55555](admission_no)
+
+    # Alphanumeric admission numbers
+    - [A123](admission_no)
+    - [B456](admission_no)
+    - [C789](admission_no)
+    - [1A2B](admission_no)
+    - [007A](admission_no)
+    - [X999](admission_no)
+    - admission number is [A12](admission_no)
+    - the number is [1B7](admission_no)
+    - use [K123](admission_no)
+    - my admission ID is [2C9](admission_no)
+    - student admission [B123](admission_no)
 
 - intent: auto_generate_admission
   examples: |
@@ -1185,55 +1524,6 @@ nlu:
     - delete the class [PP1](class_name)
     - remove the [JSS 2](class_name) class
 
-- intent: provide_admission_number
-  examples: |
-    - admission number [12345](admission_no)
-    - [54321](admission_no)
-    - [999](admission_no)
-    - use [999](admission_no)
-    - use admission [999](admission_no)
-    - the number is [999](admission_no)
-
-- intent: assign_student_to_class
-  examples: |
-    - [8a](class_name)
-    - [Grade 4](class_name)
-    - class [8a](class_name)
-    - [8a](class_name) class
-
-- intent: add_fee_item
-  examples: |
-    - add tuition fee of [25000](amount) to [Term 3 2025](structure_name)
-    - add [transport](fee_type) fee of [5000](amount) to [Standard Package](structure_name)
-    - add [exam](fee_type) fee of [2500](amount)
-    - add [boarding](fee_type) of [15000](amount) to [Premium Fees](structure_name)
-    - include [lab](fee_type) fee of [3000](amount)
-    - add tuition [25000](amount) to term [3](term) [2025](academic_year)
-
-- intent: view_fee_structure_details
-  examples: |
-    - show fee items for [Term 3 2025](structure_name)
-    - what fee items are in [Standard Package](structure_name)
-    - show me the fee breakdown for [Term 1 2025](structure_name)
-    - list fee items in [term 3](term) of [2025](academic_year)
-    - view [Term 3 2025](structure_name) items
-    - which are these fee items?
-
-- intent: delete_fee_items
-  examples: |
-    - clear the fee items for [term 3 2025](structure_name)
-    - remove all fee items from [Term 3 2025](structure_name)
-    - delete fee items for [Standard Package](structure_name)
-    - wipe fee items for [term 1 2025](structure_name)
-    - clear fees for [Term 3 2025](structure_name)
-
-- intent: delete_specific_fee_item
-  examples: |
-    - delete [tuition](fee_type) fee from [Term 3 2025](structure_name)
-    - remove [transport](fee_type) from [Standard Package](structure_name)
-    - delete the [exam](fee_type) fee in [Term 1 2025](structure_name)
-    - remove [boarding](fee_type) fee from term [3](term) [2025](academic_year)
-
 
 
 - intent: set_structure_as_default
@@ -1550,40 +1840,36 @@ nlu:
 
 - intent: add_guardian
   examples: |
-    # Original patterns with parentheses
-    - add guardian [Mary Wanjiku](guardian_name) ([Mother](relationship)) with phone [0712345678](phone) for student [5555](admission_no)
-    - add guardian [John Doe](guardian_name) ([Father](relationship)) phone [0722334455](phone) for [Eric](student_name)
-    - create parent [Jane Smith](guardian_name) ([Guardian](relationship)) email [jane@example.com](email) for [Brian](student_name)
-    - add [Peter Mwangi](guardian_name) ([Uncle](relationship)) with phone [0799887766](phone) for student [7777](admission_no)
+    # ==========================================
+    # CRITICAL: "add [relationship] to [student]" patterns
+    # ==========================================
+    - add [father](relationship) to [Max Otieno](student_name)
+    - add [mother](relationship) to [Eric Mwirichia](student_name)
+    - add [mother](relationship) to [John Doe](student_name)
+    - add [father](relationship) to [Brian Otieno](student_name)
+    - add [guardian](relationship) to [Alice Wonder](student_name)
+    - add [uncle](relationship) to [Sarah Lee](student_name)
+    - add [aunt](relationship) to [Mary Jane](student_name)
+    - add [father](relationship) for [Max](student_name)
+    - add [mother](relationship) for [Eric](student_name)
+    - add [guardian](relationship) for [Brian](student_name)
     
-    # NEW: Comma-separated patterns (more natural)
-    - add [Eric Munene](guardian_name), [father](relationship) to [Eric Mwirichia](student_name) with phone number [0722517627](phone) and email [mwirichia.eric@gmail.com](email)
-    - add [Mary Wanjiku](guardian_name), [mother](relationship) to [John Doe](student_name) with phone [0712345678](phone) and email [mary@gmail.com](email)
-    - add [Peter Kiprotich](guardian_name), [uncle](relationship) to student [5555](admission_no) with phone [0700111222](phone)
-    - add [Grace Mutua](guardian_name), [guardian](relationship) to [Alice Wonder](student_name) phone [0723456789](phone) email [grace@gmail.com](email)
-    - add [David Kariuki](guardian_name), [father](relationship) for [123](admission_no) with phone [0711223344](phone)
-    - add [Susan Njeri](guardian_name), [mother](relationship) for student [Brian](student_name) phone [0733445566](phone) and email [susan@gmail.com](email)
+    # With "a" or "the"
+    - add a [father](relationship) to [Max Otieno](student_name)
+    - add the [mother](relationship) to [Eric](student_name)
+    - add a [guardian](relationship) for [Brian](student_name)
     
-    # With "to student" phrasing
-    - add [John Kamau](guardian_name), [father](relationship) to student [123](admission_no) with phone [0722334455](phone)
-    - add [Jane Wambui](guardian_name), [mother](relationship) to student [Eric](student_name) phone [0712345678](phone) email [jane@example.com](email)
+    # "Register" variations
+    - register [father](relationship) to [Max Otieno](student_name)
+    - register [mother](relationship) for [Eric](student_name)
+    - register a [guardian](relationship) to [Brian](student_name)
     
-    # With "for" instead of "to"
-    - add [Michael Ochieng](guardian_name), [uncle](relationship) for [Sarah](student_name) with phone [0799887766](phone)
-    - add [Grace Akinyi](guardian_name), [aunt](relationship) for student [456](admission_no) phone [0788776655](phone) email [grace@gmail.com](email)
-    
-    # "as" format variations
-    - link [John Doe](guardian_name) as [father](relationship) with phone [0722334455](phone) for [James Kariuki](student_name)
-    - add [Mary Wanjiku](guardian_name) as [mother](relationship) for student [2345](admission_no)
-    - create [Peter Kiprotich](guardian_name) as [uncle](relationship) phone [0700111222](phone) for [5555](admission_no)
-    
-    # Without explicit relationship (defaults to "guardian")
-    - add guardian [David Kariuki](guardian_name) phone [0723456789](phone) for [1234](admission_no)
-    - create parent [Susan Njeri](guardian_name) email [susan@gmail.com](email) for student [9999](admission_no)
-    
-    # Shorter natural patterns
-    - add [Mary](guardian_name), [mother](relationship) to [Eric](student_name) [0712345678](phone)
-    - add [John](guardian_name) [father](relationship) for [123](admission_no) phone [0722334455](phone)
+    # Common natural phrasings
+    - add [mom](relationship) to [Max](student_name)
+    - add [dad](relationship) to [Eric](student_name)
+    - add [mum](relationship) for [Brian](student_name)
+    - add his [father](relationship) to [Max Otieno](student_name)
+    - add her [mother](relationship) to [Sarah Lee](student_name)
 
 - intent: get_guardians
   examples: |
@@ -1593,6 +1879,11 @@ nlu:
     - show parents for [5555](admission_no)
     - guardians for [Alice Wonder](student_name)
     - show me parents of [John Doe](student_name)
+    - list guardians for [Eric](student_name)
+    - who are [John](student_name) guardians
+    - show [#123](admission_no) parents
+    - guardians of [Mary](student_name)
+    - parents of student [456](admission_no)
 
 - intent: list_students_without_guardians
   examples: |
@@ -1943,26 +2234,314 @@ nlu:
     - send all parents [bring student ID cards](message)
     - broadcast [no classes on monday](message) to every parent
 
-- intent: notify_parents_with_balances
+- intent: cancel_form
   examples: |
-    - send notifications to parents with students having fee balances
-    - notify parents of students with balances
-    - send reminders to guardians with unpaid fees
-    - notify all parents with outstanding balances
-    - send fee reminders to parents who owe
-    - notify guardians with unpaid invoices
-    - send payment reminders to parents with balances
-    - notify all parents with fee balances
-    - send notifications to parents with unpaid fees
-    - remind guardians about outstanding fees
-    - notify parents about unpaid balances
-    - send fee notifications to parents with balances
-    - notify guardians with outstanding invoices
-    - send reminders about unpaid fees
-    - notify all parents who owe fees
+    - cancel
+    - stop
+    - quit
+    - exit
+    - forget it
+    - never mind
+    - cancel this
+    - stop this form
+    - I don't want to continue
+    - leave it
+    - abort
+    - cancel form
+    - stop form
+    - cancel student creation
+    - I changed my mind
+    - not now
+
+- intent: restart_form
+  examples: |
+    - start over
+    - restart
+    - reset
+    - let's begin again
+    - I want to start from scratch
+    - redo this
+    - start again
+    - restart form
+    - begin again
+    - fresh start
+    - restart student creation
+
+- intent: resume_form
+  examples: |
+    - continue
+    - yes continue
+    - let's continue
+    - keep going
+    - resume
+    - go on
+    - yes let's continue
+    - continue from where we left off
+
+- intent: stop_form
+  examples: |
+    - stop
+    - halt
+    - pause
+    - wait
+    - hold on
+    - stop this
+    - stop the form
+    - stop creating student
+
+- intent: list_academic_years
+  examples: |
+    - list academic years
+    - show academic years
+    - list all academic years
+    - show all years
+    - what academic years do we have
+    - show years
+    - list years
+    - display academic years
+    - get all academic years
+    - show me the academic years
+    - what years are available
+    - years in the system
+    - available academic years
+    - show me all years
+    - list all years
+    - academic years
+
+- intent: add_stream_to_class
+  examples: |
+    - add stream [Red](stream) to class [8](class_name)
+    - add stream [Blue](stream) to class [8](class_name)
+    - create stream [East](stream) for class [Grade 4](class_name)
+    - add [Red](stream) stream to [8](class_name)
     
-    # With term/year
-    - notify parents with balances for [2025](academic_year) term [3](term)
-    - send reminders to parents with unpaid fees for term [1](term)
-    - notify guardians with balances in [2025](academic_year) term [2](term)
+    # NEW: Multiple streams in one command
+    - add streams [Red](stream) and [Blue](stream) to class [8](class_name)
+    - add [Yellow](stream) and [Red](stream) to class [2](class_name)
+    - create streams [East](stream) and [West](stream) for [Grade 4](class_name)
+    - add [Maroon](stream) and [Indigo](stream) to [6](class_name)
+    - add streams [Red](stream), [Blue](stream) and [Green](stream) to class [8](class_name)
+    - create [Yellow](stream), [Red](stream) and [Purple](stream) for class [5](class_name)
+    - add [A](stream) and [B](stream) to class [Form 1](class_name)
+    - create streams [North](stream), [South](stream), [East](stream) and [West](stream) for [7](class_name)
+    
+    # Existing single stream patterns
+    - lets add a stream to class [8](class_name) we call it [red](stream)
+    - add stream to class [8](class_name) called [8 red](stream)
+    - add stream to class [8](class_name) called [red](stream)
+    - create [West](stream) stream for [7](class_name)
+    - add stream [North](stream) to class [Grade 5](class_name)
+    - add stream [Marvel](stream) to class [6](class_name)
+    - create stream [Maroon](stream) for class [7](class_name)
+    - add [Phoenix](stream) to class [8](class_name)
+    - add stream [Eagle](stream) to [5](class_name)
+    - create stream [Lion](stream) for [9](class_name)
+    - add [Turquoise](stream) stream to class [6](class_name)
+    - add stream [Crimson](stream) to [7](class_name)
+    - create [Violet](stream) stream for class [8](class_name)
+
+- intent: list_streams
+  examples: |
+    - show streams for class [8](class_name)
+    - list streams for [Grade 4](class_name)
+    - what streams does class [8](class_name) have
+    - show me streams for [7](class_name)
+    - streams for class [Form 1](class_name)
+
+
+- intent: provide_student_details
+  examples: |
+    # Mixed alphanumeric admission numbers
+    - [John Doe](student_name), [A123](admission_no), class [Grade 5](class_name)
+    - [Mary Jane](student_name), [1B7](admission_no), [Grade 4](class_name)
+    - [Peter Kim](student_name), [K456](admission_no), class [8A](class_name)
+    - [Sarah Lee](student_name), [2C9](admission_no), [Form 1](class_name)
+    - [James Bond](student_name), [007A](admission_no), class [7B](class_name)
+    - [Alice Wong](student_name), [B123](admission_no), [6 Red](class_name)
+    - [Bob Smith](student_name), [1A2B](admission_no), class [5 Blue](class_name)
+    - [Carol White](student_name), [X999](admission_no), [9 Green](class_name)
+
+    # Comma-separated format (name, admission, class)
+    - [Joan Nyambu](student_name), [234](admission_no), class [1 Baba](class_name)
+    - [Mary Wanjiru](student_name), [123](admission_no), [Grade 5](class_name)
+    - [Peter Mwangi](student_name), [456](admission_no), class [8A](class_name)
+    - [Sarah Akinyi](student_name), [789](admission_no), [Form 2](class_name)
+    - [James Otieno](student_name), [321](admission_no), class [7 Blue](class_name)
+    - [Grace Mutua](student_name), [654](admission_no), [6 Red](class_name)
+    - [David Kimani](student_name), [987](admission_no), class [5 White](class_name)
+    - [Faith Njeri](student_name), [111](admission_no), [9 Green](class_name)
+    - [Eric Maina](student_name), [222](admission_no), class [4 East](class_name)
+    - [Lucy Chebet](student_name), [333](admission_no), [8 North](class_name)
+    - [Moses Kiprop](student_name), [444](admission_no), class [3 A](class_name)
+    
+    # Just name and admission
+    - [John Doe](student_name), [123](admission_no)
+    - [Mary Jane](student_name), [456](admission_no)
+    - [Peter Kim](student_name), [789](admission_no)
+    
+    # Just name and class
+    - [John Doe](student_name) in [Grade 5](class_name)
+    - [Mary Jane](student_name) class [8A](class_name)
+    - [Peter Kim](student_name) to [Form 2](class_name)
+    
+    # Natural responses to form questions
+    - name is [John Doe](student_name) admission [123](admission_no) class [8A](class_name)
+    - [Mary Jane](student_name) with number [456](admission_no) in [Grade 5](class_name)
+    - the student is [Peter Kim](student_name) number [789](admission_no) for [Form 2](class_name)
+
+
+
+- intent: inform_name
+  examples: |
+    - Robin ohara
+    - Robin O'Hara
+    - Robin O Hara
+    - John Smith
+    - Mary Johnson
+    - David Brown
+    - Sarah Wilson
+    - Michael Davis
+    - Jennifer Miller
+    - Robert Taylor
+    - [Robin ohara](student_name)
+    - [Robin O'Hara](student_name)
+    - [Robin O Hara](student_name)
+    - [John Smith](student_name)
+    - [Mary Johnson](student_name)
+    - my name is [Robin ohara](student_name)
+    - the student name is [Robin O'Hara](student_name)
+    - call the student [Robin ohara](student_name)
+    - it's [Robin ohara](student_name)
+    - [Robin ohara](student_name) is the name
+
+
+- intent: list_all_guardians
+  examples: |
+    - list all guardians
+    - show all guardians
+    - list guardians
+    - show guardians
+    - get all guardians
+    - display all guardians
+    - show me all guardians
+    - list all parents
+    - show all parents
+    - guardians list
+    - parents list
+    - all guardians
+    - all parents
+    - show me guardians
+    - display guardians
+    - view all guardians
+    - guardians in the system
+    - show parent list
+    - list parent contacts
+
+
+- intent: add_guardian
+  examples: |
+    # ==========================================
+    # COMPLETE INFO (all details provided)
+    # ==========================================
+    - Add [Mary Wanjiku](guardian_name), [mother](relationship) to [Eric](student_name) with phone [0712345678](phone) and email [mary@gmail.com](email)
+    - Add [John Mwangi](guardian_name) ([father](relationship)) for student [2345](admission_no) phone [0722123456](phone) email [john@gmail.com](email)
+    - Register [Jane Njeri](guardian_name) as [guardian](relationship) for [Sarah](student_name) with phone [0733456789](phone) and email [jane@gmail.com](email)
+    - Add guardian [Peter Kamau](guardian_name) ([uncle](relationship)) to student [#1234](admission_no) phone [0711222333](phone) email [peter@gmail.com](email)
+    - Create guardian [Grace Wanjiru](guardian_name), [mother](relationship) for [Kevin](student_name), phone [0712345678](phone), email [grace@gmail.com](email)
+    
+    # ==========================================
+    # PARTIAL INFO (will trigger form)
+    # ==========================================
+    - add [mother](relationship) to [Max Otieno](student_name)
+    - add [father](relationship) to [John](student_name)
+    - add [mother](relationship) for [Eric](student_name)
+    - add [father](relationship) for student [#2345](admission_no)
+    - register [mother](relationship) to [Sarah](student_name)
+    - register [father](relationship) for [Kevin](student_name)
+    - add [guardian](relationship) to [Mary](student_name)
+    - add [uncle](relationship) for [Peter](student_name)
+    - create [mother](relationship) for [Jane](student_name)
+    - add [grandmother](relationship) to [Lucy](student_name)
+    - register [grandfather](relationship) for [Tom](student_name)
+    - add [aunt](relationship) to student [#5678](admission_no)
+    
+    # ==========================================
+    # MINIMAL INFO (name + relationship only)
+    # ==========================================
+    - add [Mary Wanjiku](guardian_name) as [mother](relationship)
+    - register [John Kamau](guardian_name) as [father](relationship)
+    - add [Grace Njeri](guardian_name) ([mother](relationship))
+    - create guardian [Peter Mwangi](guardian_name) as [uncle](relationship)
+    - add [Jane Wanjiru](guardian_name) as [guardian](relationship)
+    
+    # ==========================================
+    # STUDENT SPECIFIED BY NAME
+    # ==========================================
+    - add [Mary Wanjiku](guardian_name) for [Eric](student_name)
+    - register [John Kamau](guardian_name) for student [Max](student_name)
+    - add guardian [Grace Njeri](guardian_name) to [Sarah](student_name)
+    - create [Peter Mwangi](guardian_name) for [Kevin Njoroge](student_name)
+    
+    # ==========================================
+    # STUDENT SPECIFIED BY ADMISSION NUMBER
+    # ==========================================
+    - add [Mary Wanjiku](guardian_name) for student [#2345](admission_no)
+    - register [John Kamau](guardian_name) for [#1234](admission_no)
+    - add guardian [Grace Njeri](guardian_name) to student [5678](admission_no)
+    - create [Peter Mwangi](guardian_name) for [#4567](admission_no)
+    
+    # ==========================================
+    # WITH PHONE ONLY
+    # ==========================================
+    - add [Mary Wanjiku](guardian_name) with phone [0712345678](phone) for [Eric](student_name)
+    - register [John Kamau](guardian_name) phone [0722123456](phone) for student [#2345](admission_no)
+    - add [Grace Njeri](guardian_name) ([mother](relationship)) phone [0733456789](phone) to [Sarah](student_name)
+    
+    # ==========================================
+    # WITH EMAIL ONLY
+    # ==========================================
+    - add [Mary Wanjiku](guardian_name) with email [mary@gmail.com](email) for [Eric](student_name)
+    - register [John Kamau](guardian_name) email [john@gmail.com](email) for [Max](student_name)
+    
+    # ==========================================
+    # COMMON NATURAL PHRASES
+    # ==========================================
+    - add [mom](relationship) to [Eric](student_name)
+    - add [dad](relationship) to [Max](student_name)
+    - register [mum](relationship) for [Sarah](student_name)
+    - add [mommy](relationship) to [Kevin](student_name)
+    - add [daddy](relationship) for [Jane](student_name)
+    - add his [mother](relationship)
+    - add her [father](relationship)
+    - register his [guardian](relationship)
+    - add the [mother](relationship) to [Lucy](student_name)
+    - add the [father](relationship) for student [#1234](admission_no)
+    
+    # ==========================================
+    # QUESTION FORMS
+    # ==========================================
+    - can you add [Mary Wanjiku](guardian_name) as [mother](relationship) for [Eric](student_name)?
+    - please add [John Kamau](guardian_name) for student [#2345](admission_no)
+    - I want to add [Grace Njeri](guardian_name) as [guardian](relationship)
+    - could you register [Peter Mwangi](guardian_name) for [Max](student_name)?
+    - I need to add [mother](relationship) to [Sarah](student_name)
+    - can I add [father](relationship) for [Kevin](student_name)?
+    
+    # ==========================================
+    # ACTION VERBS
+    # ==========================================
+    - register [Mary Wanjiku](guardian_name) as [mother](relationship) for [Eric](student_name)
+    - create guardian [John Kamau](guardian_name) for [Max](student_name)
+    - link [Grace Njeri](guardian_name) to [Sarah](student_name)
+    - assign [Peter Mwangi](guardian_name) as [father](relationship) to student [#1234](admission_no)
+    - connect [Jane Wanjiru](guardian_name) to [Kevin](student_name)
+    
+    # ==========================================
+    # SHORT FORMS
+    # ==========================================
+    - add guardian [Mary](guardian_name)
+    - register parent [John](guardian_name)
+    - add parent for [Eric](student_name)
+    - register guardian for student [#2345](admission_no)
+    - add contact for [Max](student_name)
 
