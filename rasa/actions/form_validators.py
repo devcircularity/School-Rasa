@@ -2,11 +2,16 @@ from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.events import SlotSet  # Remove FollowupAction import
 from typing import Dict, Text, Any, List
+from dotenv import load_dotenv
 import requests
 import logging
+import os
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
-FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
+FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://127.0.0.1:8000/api")
+
 
 
 class ActionValidateStudentCreationPrerequisites(Action):

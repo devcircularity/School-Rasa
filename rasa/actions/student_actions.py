@@ -16,6 +16,10 @@ from datetime import datetime
 from typing import Dict, Text, Any, List
 import logging
 import sys
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,7 +34,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Configuration - should match your FastAPI setup
-FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
+FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://127.0.0.1:8000/api")
 
 
 def normalize_class_name(class_name: str) -> str:

@@ -3,9 +3,14 @@ from rasa_sdk.executor import CollectingDispatcher
 from typing import Dict, Text, Any, List
 import requests
 import logging
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
-FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
+FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://127.0.0.1:8000/api")
 
 
 class ActionGetSchoolInfo(Action):

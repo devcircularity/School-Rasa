@@ -13,11 +13,18 @@ from datetime import datetime
 from typing import Dict, Text, Any, List
 from actions.utils import normalize_level_label, extract_level_number, normalize_stream_name
 import re
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
+# Configuration - Load from environment
+FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://127.0.0.1:8000/api")
+
+logger.info(f"FastAPI Base URL: {FASTAPI_BASE_URL}")
 
 
 def normalize_class_name(class_name: str) -> str:
@@ -43,7 +50,6 @@ def normalize_class_name(class_name: str) -> str:
     
     # Default: title case
     return class_name.title()
-
 
 class ActionCreateAcademicYear(Action):
     def name(self) -> Text:

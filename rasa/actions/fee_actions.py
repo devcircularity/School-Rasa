@@ -7,10 +7,16 @@ import logging
 import re
 from typing import Dict, Text, Any, List
 from decimal import Decimal
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-FASTAPI_BASE_URL = "http://127.0.0.1:8000/api"
+FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://127.0.0.1:8000/api")
+
 
 
 def fix_swapped_year_term(academic_year: str, term: str, user_message: str) -> tuple:
