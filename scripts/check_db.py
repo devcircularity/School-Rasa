@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def check_database_connection():
     """Check if database connection is working"""
     
-    db_url = "postgresql://schooluser:schoolpass@localhost:5432/schooldb"
+    db_url = "postgresql+psycopg2://schoolai2_user:StrongPassword123!@localhost/schoolai2rasa"
     parsed = urlparse(db_url)
     
     print("Database Connection Check")

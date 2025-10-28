@@ -81,7 +81,7 @@ def setup_alembic():
             from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
             from urllib.parse import urlparse
             
-            db_url = "postgresql://schooluser:schoolpass@localhost:5432/schooldb"
+            db_url = "postgresql+psycopg2://schoolai2_user:StrongPassword123!@localhost/schoolai2rasa"
             parsed = urlparse(db_url)
             
             # Connect to postgres database
