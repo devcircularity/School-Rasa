@@ -59,8 +59,8 @@ function OnboardingSchoolForm() {
         address: form.address || undefined,
         currency: form.currency || undefined,
         academic_year_start: form.academic_year_start,
-        boarding_type: form.boarding_type,
-        gender_type: form.gender_type,
+        boarding_type: form.boarding_type || undefined,
+        gender_type: form.gender_type || undefined,
       });
       setSchoolId(created.id.toString());
       router.push(next);
