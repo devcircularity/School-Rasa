@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Rasa configuration
-RASA_SERVER_URL = os.getenv("RASA_SERVER_URL", "http://localhost:5005")
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+RASA_SERVER_URL = os.getenv("RASA_SERVER_URL", "http://0.0.0.0:5005")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://schoolrasaai.olaji.co")
 
 def extract_auth_token(request: Request) -> Optional[str]:
     """Extract JWT token from Authorization header"""
